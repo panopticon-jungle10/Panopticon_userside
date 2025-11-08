@@ -37,6 +37,22 @@ export interface Order {
   updatedAt: string;
 }
 
+export interface CartItem {
+  productId: string;
+  quantity: number;
+  price: number;
+  productName: string;
+}
+
+export interface Cart {
+  id: string;
+  userId: string;
+  items: CartItem[];
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Products API
 export async function getProducts(): Promise<Product[]> {
   const res = await fetch(`${API_URL}/products`, {
@@ -94,5 +110,54 @@ export async function getOrders(userId?: string): Promise<Order[]> {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error('Failed to fetch orders');
+  return res.json();
+}
+
+// Cart API
+export async function getCart(userId: string): Promise<Cart> {
+  const res = await fetch(`${API_URL}/cart/${userId}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch cart');
+  return res.json();
+}
+
+export async function addToCart(userId: string, productId: string, quantity: number): Promise<Cart> {
+  const res = await fetch(`${API_URL}/cart/items`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ userId, productId, quantity }),
+  });
+  if (!res.ok) throw new Error('Failed to add item to cart');
+  return res.json();
+}
+
+export async function updateCartItemQuantity(userId: string, productId: string, quantity: number): Promise<Cart> {
+  const res = await fetch(`${API_URL}/cart/${userId}/items/${productId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ quantity }),
+  });
+  if (!res.ok) throw new Error('Failed to update cart item');
+  return res.json();
+}
+
+export async function removeFromCart(userId: string, productId: string): Promise<Cart> {
+  const res = await fetch(`${API_URL}/cart/${userId}/items/${productId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to remove item from cart');
+  return res.json();
+}
+
+export async function clearCart(userId: string): Promise<Cart> {
+  const res = await fetch(`${API_URL}/cart/${userId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to clear cart');
   return res.json();
 }
