@@ -30,26 +30,51 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Traces endpoint
 app.post('/v1/traces', (req: Request, res: Response) => {
-  console.log('[TRACES] Received trace data');
-  console.log('Trace payload size:', JSON.stringify(req.body).length, 'bytes');
-
-  // Log sample of trace data
-  if (req.body && req.body.resourceSpans) {
-    console.log('Number of resource spans:', req.body.resourceSpans.length);
+  // Extract API endpoint from spans
+  let apiEndpoint = 'unknown';
+  if (req.body?.resourceSpans?.[0]?.scopeSpans?.[0]?.spans) {
+    const spans = req.body.resourceSpans[0].scopeSpans[0].spans;
+    const span = spans[0];
+    if (span?.attributes) {
+      const httpTarget = span.attributes.find((attr: any) => attr.key === 'http.target');
+      if (httpTarget) {
+        apiEndpoint = httpTarget.value.stringValue;
+      }
+    }
   }
+
+  // Skip health check logs
+  if (apiEndpoint === '/health') {
+    res.status(200).json({ status: 'success' });
+    return;
+  }
+
+  console.log('━'.repeat(50));
+  console.log('[TRACES] API Call:', apiEndpoint);
+  console.log('Payload size:', JSON.stringify(req.body).length, 'bytes');
+  console.log('Resource spans:', req.body?.resourceSpans?.length || 0);
+  console.log('━'.repeat(50));
 
   res.status(200).json({ status: 'success' });
 });
 
 // Metrics endpoint
 app.post('/v1/metrics', (req: Request, res: Response) => {
-  console.log('[METRICS] Received metrics data');
-  console.log('Metrics payload size:', JSON.stringify(req.body).length, 'bytes');
-
-  // Log sample of metrics data
-  if (req.body && req.body.resourceMetrics) {
-    console.log('Number of resource metrics:', req.body.resourceMetrics.length);
+  // Extract metric names
+  const metricNames: string[] = [];
+  if (req.body?.resourceMetrics?.[0]?.scopeMetrics) {
+    req.body.resourceMetrics[0].scopeMetrics.forEach((scopeMetric: any) => {
+      scopeMetric.metrics?.forEach((metric: any) => {
+        if (metric.name) metricNames.push(metric.name);
+      });
+    });
   }
+
+  console.log('━'.repeat(50));
+  console.log('[METRICS] Received metrics data');
+  console.log('Metrics:', metricNames.slice(0, 5).join(', '), metricNames.length > 5 ? '...' : '');
+  console.log('Total metrics:', metricNames.length);
+  console.log('━'.repeat(50));
 
   res.status(200).json({ status: 'success' });
 });
@@ -69,17 +94,27 @@ app.post('/v1/logs', (req: Request, res: Response) => {
 
 // Fluent-bit endpoint (HTTP output plugin)
 app.post('/fluent-bit/logs', (req: Request, res: Response) => {
-  console.log('[LOGS-FLUENTBIT] Received Fluent-bit logs');
-
   if (Array.isArray(req.body)) {
-    console.log('Number of log entries:', req.body.length);
-
-    // Log first few entries as sample
-    req.body.slice(0, 3).forEach((logEntry, index) => {
-      console.log(`Log entry ${index + 1}:`, JSON.stringify(logEntry, null, 2));
+    // Extract actual log messages
+    const logMessages = req.body.map((entry: any) => {
+      const logMessage = entry.log || entry.message || JSON.stringify(entry);
+      const namespace = entry.kubernetes?.namespace_name || 'unknown';
+      const podName = entry.kubernetes?.pod_name || 'unknown';
+      return { namespace, podName, log: logMessage.substring(0, 100) };
     });
-  } else {
-    console.log('Log data:', JSON.stringify(req.body, null, 2));
+
+    // Skip if no meaningful logs
+    if (logMessages.length === 0) {
+      res.status(200).json({ status: 'success' });
+      return;
+    }
+
+    console.log('━'.repeat(50));
+    console.log(`[LOGS] ${logMessages.length} log entries from ${logMessages[0].namespace}/${logMessages[0].podName}`);
+    logMessages.slice(0, 2).forEach((msg, i) => {
+      console.log(`  [${i + 1}] ${msg.log}`);
+    });
+    console.log('━'.repeat(50));
   }
 
   res.status(200).json({ status: 'success' });
@@ -110,7 +145,7 @@ app.all('*', (req: Request, res: Response) => {
 // Start server
 app.listen(PORT, () => {
   console.log('='.repeat(50));
-  console.log(`=� Ingest Server running on port ${PORT}`);
+  console.log(`=� Ingest Server running on port ${PORT}`);
   console.log('='.repeat(50));
   console.log('Available endpoints:');
   console.log('  - GET  /health                (Health check)');
