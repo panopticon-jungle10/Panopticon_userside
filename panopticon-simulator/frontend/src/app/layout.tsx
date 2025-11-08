@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
   title: 'E-commerce Store',
@@ -12,29 +13,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <style>{`
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          body {
-            background: #0a0a0a;
-            color: #e0e0e0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-          }
-          a {
-            color: #60a5fa;
-            text-decoration: none;
-            transition: color 0.2s;
-          }
-          a:hover {
-            color: #93c5fd;
-          }
-        `}</style>
-      </head>
       <body>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
           <nav style={{
