@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingest-server
+  namespace: tenant-a
+  labels:
+    app: ingest-server
+    component: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingest-server
+  template:
+    metadata:
+      labels:
+        app: ingest-server
+        component: observability
+    spec:
+      containers:
+      - name: ingest-server
+        image: ingest-server:latest
+        imagePullPolicy: Never  # For local development with kind
+        ports:
+        - containerPort: 4318
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "4318"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4318
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4318
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3

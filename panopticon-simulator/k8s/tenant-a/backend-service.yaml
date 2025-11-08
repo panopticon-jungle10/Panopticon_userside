@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: tenant-a
+  labels:
+    app: backend
+    tenant: user-a
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
