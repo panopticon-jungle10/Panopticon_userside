@@ -13,6 +13,7 @@ RUN npm ci
 
 # Copy source code
 COPY src ./src
+COPY otel-config.ts ./
 
 # Build the application
 RUN npm run build
@@ -39,4 +40,4 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Start the application
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main.js"]
