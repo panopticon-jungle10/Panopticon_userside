@@ -9,6 +9,26 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
+  // HTTP Request Logging Middleware
+  app.use((req: any, res: any, next: any) => {
+    const start = Date.now();
+    const { method, originalUrl, ip } = req;
+
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      const { statusCode } = res;
+      const logMessage = `${method} ${originalUrl} ${statusCode} - ${duration}ms - ${ip}`;
+
+      if (statusCode >= 400) {
+        logger.error(logMessage);
+      } else {
+        logger.log(logMessage);
+      }
+    });
+
+    next();
+  });
+
   // Enable CORS
   app.enableCors();
 
