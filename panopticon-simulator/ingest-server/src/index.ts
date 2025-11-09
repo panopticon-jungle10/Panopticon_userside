@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import * as $root from '@opentelemetry/otlp-transformer/build/src/generated/root';
 
 const app = express();
 const PORT = process.env.PORT || 4318;
@@ -30,29 +31,74 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Traces endpoint
 app.post('/v1/traces', (req: Request, res: Response) => {
-  // Extract API endpoint from spans
-  let apiEndpoint = 'unknown';
-  if (req.body?.resourceSpans?.[0]?.scopeSpans?.[0]?.spans) {
-    const spans = req.body.resourceSpans[0].scopeSpans[0].spans;
-    const span = spans[0];
-    if (span?.attributes) {
-      const httpTarget = span.attributes.find((attr: any) => attr.key === 'http.target');
-      if (httpTarget) {
-        apiEndpoint = httpTarget.value.stringValue;
-      }
-    }
+  // Extract trace information from all spans
+  const traceInfo: any = {
+    endpoints: new Set(),
+    methods: new Set(),
+    statusCodes: new Set(),
+    spanCount: 0,
+    spanNames: new Set(),
+  };
+
+  if (req.body?.resourceSpans) {
+    req.body.resourceSpans.forEach((resourceSpan: any) => {
+      resourceSpan.scopeSpans?.forEach((scopeSpan: any) => {
+        scopeSpan.spans?.forEach((span: any) => {
+          traceInfo.spanCount++;
+          if (span.name) {
+            traceInfo.spanNames.add(span.name);
+          }
+
+          if (span?.attributes) {
+            // HTTP target (endpoint)
+            const httpTarget = span.attributes.find((attr: any) => attr.key === 'http.target' || attr.key === 'http.route');
+            if (httpTarget) {
+              traceInfo.endpoints.add(httpTarget.value.stringValue);
+            }
+
+            // HTTP method
+            const httpMethod = span.attributes.find((attr: any) => attr.key === 'http.method');
+            if (httpMethod) {
+              traceInfo.methods.add(httpMethod.value.stringValue);
+            }
+
+            // HTTP status code
+            const httpStatus = span.attributes.find((attr: any) => attr.key === 'http.status_code');
+            if (httpStatus) {
+              traceInfo.statusCodes.add(httpStatus.value.intValue);
+            }
+          }
+        });
+      });
+    });
   }
 
-  // Skip health check logs
-  if (apiEndpoint === '/health') {
-    res.status(200).json({ status: 'success' });
-    return;
-  }
+  const endpoints = Array.from(traceInfo.endpoints);
+  const methods = Array.from(traceInfo.methods);
+  const spanNames = Array.from(traceInfo.spanNames);
+
+  // Skip health check logs - TEMPORARILY DISABLED FOR DEBUGGING
+  // const isHealthCheck = endpoints.includes('/health') || spanNames.some((name: any) => name?.includes('/health'));
+  // if (isHealthCheck) {
+  //   res.status(200).json({ status: 'success' });
+  //   return;
+  // }
 
   console.log('━'.repeat(50));
-  console.log('[TRACES] API Call:', apiEndpoint);
-  console.log('Payload size:', JSON.stringify(req.body).length, 'bytes');
-  console.log('Resource spans:', req.body?.resourceSpans?.length || 0);
+  console.log('[TRACES] Trace received');
+  console.log('Spans:', traceInfo.spanCount);
+  console.log('Span names:', spanNames.slice(0, 3).join(', '));
+  if (methods.length > 0 && endpoints.length > 0) {
+    console.log('API Calls:', methods.map((m, i) => `${m} ${endpoints[i] || endpoints[0]}`).join(', '));
+  } else if (endpoints.length > 0) {
+    console.log('Endpoints:', endpoints.join(', '));
+  } else {
+    // No endpoints found, show span names for debugging
+    console.log('No HTTP endpoints found. Span names:', spanNames.join(', '));
+  }
+  if (traceInfo.statusCodes.size > 0) {
+    console.log('Status codes:', Array.from(traceInfo.statusCodes).join(', '));
+  }
   console.log('━'.repeat(50));
 
   res.status(200).json({ status: 'success' });
@@ -60,13 +106,47 @@ app.post('/v1/traces', (req: Request, res: Response) => {
 
 // Metrics endpoint
 app.post('/v1/metrics', (req: Request, res: Response) => {
+  const contentType = req.headers['content-type'];
+  console.log('[METRICS] Content-Type:', contentType);
+
+  let metricsData: any = null;
+
+  // Handle protobuf format
+  if (contentType?.includes('application/x-protobuf')) {
+    try {
+      // Protobuf data comes as Buffer through express.raw()
+      const buffer = req.body as Buffer;
+      console.log('[METRICS] Received protobuf data, length:', buffer.length);
+
+      // Access the protobuf message type directly from the namespace
+      const ExportMetricsServiceRequest = ($root as any).opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+      const decoded = ExportMetricsServiceRequest.decode(buffer);
+      metricsData = ExportMetricsServiceRequest.toObject(decoded, {
+        longs: String,
+        enums: String,
+        bytes: String,
+      });
+      console.log('[METRICS] Deserialized protobuf successfully');
+    } catch (error) {
+      console.error('[METRICS] Error decoding protobuf:', error);
+      metricsData = null;
+    }
+  } else {
+    // Handle JSON format (from backend SDK)
+    metricsData = req.body;
+  }
+
   // Extract metric names
   const metricNames: string[] = [];
-  if (req.body?.resourceMetrics?.[0]?.scopeMetrics) {
-    req.body.resourceMetrics[0].scopeMetrics.forEach((scopeMetric: any) => {
-      scopeMetric.metrics?.forEach((metric: any) => {
-        if (metric.name) metricNames.push(metric.name);
-      });
+  if (metricsData?.resourceMetrics) {
+    metricsData.resourceMetrics.forEach((resourceMetric: any) => {
+      if (resourceMetric.scopeMetrics) {
+        resourceMetric.scopeMetrics.forEach((scopeMetric: any) => {
+          scopeMetric.metrics?.forEach((metric: any) => {
+            if (metric.name) metricNames.push(metric.name);
+          });
+        });
+      }
     });
   }
 
@@ -82,6 +162,7 @@ app.post('/v1/metrics', (req: Request, res: Response) => {
 // Logs endpoint (for OTLP logs)
 app.post('/v1/logs', (req: Request, res: Response) => {
   console.log('[LOGS-OTLP] Received OTLP logs data');
+  console.log('Content-Type:', req.headers['content-type']);
   console.log('Logs payload size:', JSON.stringify(req.body).length, 'bytes');
 
   // Log sample of logs data
