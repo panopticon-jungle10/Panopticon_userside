@@ -1,24 +1,37 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
-import { Order, OrderItem } from './order.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Order } from './order.entity';
+import { OrderItem } from './order-item.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ProductsService } from '../products/products.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
-  private orders: Order[] = [];
 
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    @InjectRepository(Order)
+    private readonly ordersRepository: Repository<Order>,
+    private readonly productsService: ProductsService,
+    private readonly usersService: UsersService,
+  ) {}
 
-  findAll(): Order[] {
-    this.logger.log(`Finding all orders. Total: ${this.orders.length}`);
-    return this.orders;
+  findAll(): Promise<Order[]> {
+    this.logger.log('Finding all orders');
+    return this.ordersRepository.find({
+      relations: ['items', 'items.product', 'user'],
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  findOne(id: string): Order {
+  async findOne(id: string): Promise<Order> {
     this.logger.log(`Finding order with id: ${id}`);
-    const order = this.orders.find((o) => o.id === id);
+    const order = await this.ordersRepository.findOne({
+      where: { id },
+      relations: ['items', 'items.product', 'user'],
+    });
     if (!order) {
       this.logger.warn(`Order with id ${id} not found`);
       throw new NotFoundException(`Order with id ${id} not found`);
@@ -26,59 +39,47 @@ export class OrdersService {
     return order;
   }
 
-  findByUserId(userId: string): Order[] {
+  findByUserId(userId: string): Promise<Order[]> {
     this.logger.log(`Finding orders for user: ${userId}`);
-    return this.orders.filter((o) => o.userId === userId);
-  }
-
-  create(createOrderDto: CreateOrderDto): Order {
-    this.logger.log(`Creating new order for user: ${createOrderDto.userId}`);
-
-    // Calculate order items with prices
-    const orderItems: OrderItem[] = createOrderDto.items.map((item) => {
-      const product = this.productsService.findOne(item.productId);
-      return {
-        productId: item.productId,
-        quantity: item.quantity,
-        price: product.price,
-      };
+    return this.ordersRepository.find({
+      where: { user: { id: userId } },
+      relations: ['items', 'items.product', 'user'],
+      order: { createdAt: 'DESC' },
     });
-
-    // Calculate total amount
-    const totalAmount = orderItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0,
-    );
-
-    const newOrder: Order = {
-      id: uuidv4(),
-      userId: createOrderDto.userId,
-      items: orderItems,
-      totalAmount,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    this.orders.push(newOrder);
-    this.logger.log(`Order created successfully with id: ${newOrder.id}, total: $${totalAmount}`);
-    return newOrder;
   }
 
-  updateStatus(id: string, status: Order['status']): Order {
-    this.logger.log(`Updating order ${id} status to: ${status}`);
-    const orderIndex = this.orders.findIndex((o) => o.id === id);
-    if (orderIndex === -1) {
-      this.logger.warn(`Order with id ${id} not found for status update`);
-      throw new NotFoundException(`Order with id ${id} not found`);
+  async create(createOrderDto: CreateOrderDto): Promise<Order> {
+    this.logger.log(`Creating new order for user: ${createOrderDto.userId}`);
+    const user = await this.usersService.findOne(createOrderDto.userId);
+
+    const items: OrderItem[] = [];
+    for (const item of createOrderDto.items) {
+      const product = await this.productsService.findOne(item.productId);
+      const orderItem = new OrderItem();
+      orderItem.product = product;
+      orderItem.quantity = item.quantity;
+      orderItem.unitPrice = product.price;
+      items.push(orderItem);
     }
 
-    this.orders[orderIndex] = {
-      ...this.orders[orderIndex],
-      status,
-      updatedAt: new Date(),
-    };
+    const totalAmount = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const order = this.ordersRepository.create({
+      user,
+      items,
+      totalAmount,
+      status: 'pending',
+    });
+    const saved = await this.ordersRepository.save(order);
+    this.logger.log(`Order created successfully with id: ${saved.id}, total: $${totalAmount}`);
+    return saved;
+  }
+
+  async updateStatus(id: string, status: Order['status']): Promise<Order> {
+    this.logger.log(`Updating order ${id} status to: ${status}`);
+    const order = await this.findOne(id);
+    order.status = status;
+    const updated = await this.ordersRepository.save(order);
     this.logger.log(`Order ${id} status updated to ${status}`);
-    return this.orders[orderIndex];
+    return updated;
   }
 }

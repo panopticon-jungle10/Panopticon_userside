@@ -29,6 +29,19 @@ spec:
           value: "production"
         - name: PORT
           value: "3000"
+        - name: DATABASE_HOST
+          value: "postgres"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_NAME
+          value: "panopticon"
+        - name: DATABASE_USER
+          value: "panopticon"
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: "http://ingest-server:4318"
         resources:

@@ -1,148 +1,155 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
-import { Cart, CartItem } from './cart.entity';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Cart } from './cart.entity';
+import { CartItem } from './cart-item.entity';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { ProductsService } from '../products/products.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class CartService {
   private readonly logger = new Logger(CartService.name);
-  private carts: Cart[] = [];
 
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    @InjectRepository(Cart)
+    private readonly cartsRepository: Repository<Cart>,
+    @InjectRepository(CartItem)
+    private readonly cartItemsRepository: Repository<CartItem>,
+    private readonly productsService: ProductsService,
+    private readonly usersService: UsersService,
+  ) {}
 
   private calculateTotalAmount(items: CartItem[]): number {
-    return items.reduce((total, item) => total + item.price * item.quantity, 0);
+    return items.reduce((total, item) => total + item.unitPrice * item.quantity, 0);
   }
 
-  findByUserId(userId: string): Cart {
+  async findByUserId(userId: string): Promise<Cart> {
     this.logger.log(`Finding cart for user: ${userId}`);
-    let cart = this.carts.find((c) => c.userId === userId);
+    let cart = await this.cartsRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['items', 'items.product', 'user'],
+    });
 
     if (!cart) {
       this.logger.log(`Creating new cart for user: ${userId}`);
-      cart = {
-        id: uuidv4(),
-        userId,
+      const user = await this.usersService.findOne(userId);
+      cart = this.cartsRepository.create({
+        user,
         items: [],
         totalAmount: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      this.carts.push(cart);
+      });
+      cart = await this.cartsRepository.save(cart);
     }
 
+    cart.items = cart.items ?? [];
     return cart;
   }
 
-  addItem(addToCartDto: AddToCartDto): Cart {
+  async addItem(addToCartDto: AddToCartDto): Promise<Cart> {
     this.logger.log(`Adding item to cart for user: ${addToCartDto.userId}`);
-
-    // Validate product exists and has stock
-    const product = this.productsService.findOne(addToCartDto.productId);
+    const product = await this.productsService.findOne(addToCartDto.productId);
     if (product.stock < addToCartDto.quantity) {
       throw new BadRequestException(`Insufficient stock for product ${product.name}`);
     }
 
-    const cart = this.findByUserId(addToCartDto.userId);
-    const existingItemIndex = cart.items.findIndex(
-      (item) => item.productId === addToCartDto.productId,
-    );
+    const cart = await this.findByUserId(addToCartDto.userId);
+    cart.items = cart.items ?? [];
+    const existingItem = cart.items?.find((item) => item.product.id === addToCartDto.productId);
 
-    if (existingItemIndex !== -1) {
-      // Update quantity if item already exists
-      cart.items[existingItemIndex].quantity += addToCartDto.quantity;
+    if (existingItem) {
+      existingItem.quantity += addToCartDto.quantity;
+      await this.cartItemsRepository.save(existingItem);
       this.logger.log(`Updated quantity for existing item in cart`);
     } else {
-      // Add new item to cart
-      const newItem: CartItem = {
-        productId: addToCartDto.productId,
+      const newItem = this.cartItemsRepository.create({
+        cart,
+        product,
         quantity: addToCartDto.quantity,
-        price: product.price,
-        productName: product.name,
-      };
+        unitPrice: product.price,
+      });
+      await this.cartItemsRepository.save(newItem);
       cart.items.push(newItem);
       this.logger.log(`Added new item to cart: ${product.name}`);
     }
 
     cart.totalAmount = this.calculateTotalAmount(cart.items);
-    cart.updatedAt = new Date();
-
-    return cart;
+    await this.cartsRepository.save(cart);
+    return this.findByUserId(addToCartDto.userId);
   }
 
-  updateItemQuantity(
+  async updateItemQuantity(
     userId: string,
     productId: string,
     updateCartItemDto: UpdateCartItemDto,
-  ): Cart {
+  ): Promise<Cart> {
     this.logger.log(`Updating cart item quantity for user: ${userId}, product: ${productId}`);
-
-    const cart = this.findByUserId(userId);
-    const itemIndex = cart.items.findIndex((item) => item.productId === productId);
-
-    if (itemIndex === -1) {
+    const cart = await this.findByUserId(userId);
+    cart.items = cart.items ?? [];
+    const item = cart.items.find((cartItem) => cartItem.product.id === productId);
+    if (!item) {
       throw new NotFoundException(`Product ${productId} not found in cart`);
     }
 
     if (updateCartItemDto.quantity <= 0) {
-      // Remove item if quantity is 0 or less
-      cart.items.splice(itemIndex, 1);
+      await this.cartItemsRepository.remove(item);
+      cart.items = cart.items.filter((cartItem) => cartItem.id !== item.id);
       this.logger.log(`Removed item from cart`);
     } else {
-      // Validate stock
-      const product = this.productsService.findOne(productId);
+      const product = await this.productsService.findOne(productId);
       if (product.stock < updateCartItemDto.quantity) {
         throw new BadRequestException(`Insufficient stock for product ${product.name}`);
       }
-
-      cart.items[itemIndex].quantity = updateCartItemDto.quantity;
+      item.quantity = updateCartItemDto.quantity;
+      await this.cartItemsRepository.save(item);
       this.logger.log(`Updated item quantity to ${updateCartItemDto.quantity}`);
     }
 
     cart.totalAmount = this.calculateTotalAmount(cart.items);
-    cart.updatedAt = new Date();
-
-    return cart;
+    await this.cartsRepository.save(cart);
+    return this.findByUserId(userId);
   }
 
-  removeItem(userId: string, productId: string): Cart {
+  async removeItem(userId: string, productId: string): Promise<Cart> {
     this.logger.log(`Removing item from cart for user: ${userId}, product: ${productId}`);
-
-    const cart = this.findByUserId(userId);
-    const itemIndex = cart.items.findIndex((item) => item.productId === productId);
-
-    if (itemIndex === -1) {
+    const cart = await this.findByUserId(userId);
+    cart.items = cart.items ?? [];
+    const item = cart.items.find((cartItem) => cartItem.product.id === productId);
+    if (!item) {
       throw new NotFoundException(`Product ${productId} not found in cart`);
     }
-
-    cart.items.splice(itemIndex, 1);
+    await this.cartItemsRepository.remove(item);
+    cart.items = cart.items.filter((cartItem) => cartItem.id !== item.id);
     cart.totalAmount = this.calculateTotalAmount(cart.items);
-    cart.updatedAt = new Date();
-
     this.logger.log(`Item removed from cart successfully`);
-    return cart;
+    await this.cartsRepository.save(cart);
+    return this.findByUserId(userId);
   }
 
-  clearCart(userId: string): Cart {
+  async clearCart(userId: string): Promise<Cart> {
     this.logger.log(`Clearing cart for user: ${userId}`);
-
-    const cart = this.findByUserId(userId);
+    const cart = await this.findByUserId(userId);
+    cart.items = cart.items ?? [];
+    if (cart.items.length > 0) {
+      await this.cartItemsRepository.remove(cart.items);
+    }
     cart.items = [];
     cart.totalAmount = 0;
-    cart.updatedAt = new Date();
-
     this.logger.log(`Cart cleared successfully`);
-    return cart;
+    await this.cartsRepository.save(cart);
+    return this.findByUserId(userId);
   }
 
-  removeCart(userId: string): void {
+  async removeCart(userId: string): Promise<void> {
     this.logger.log(`Removing cart for user: ${userId}`);
-
-    const cartIndex = this.carts.findIndex((c) => c.userId === userId);
-    if (cartIndex !== -1) {
-      this.carts.splice(cartIndex, 1);
+    const cart = await this.cartsRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['items'],
+    });
+    if (cart) {
+      cart.items = cart.items ?? [];
+      await this.cartsRepository.remove(cart);
       this.logger.log(`Cart removed successfully`);
     }
   }
