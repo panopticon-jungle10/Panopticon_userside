@@ -62,4 +62,17 @@ export class UsersService implements OnModuleInit {
     this.logger.log(`User created successfully with id: ${saved.id}`);
     return saved;
   }
+
+  async findOrCreateByEmail(email: string, name?: string): Promise<User> {
+    let user = await this.findByEmail(email);
+    if (user) {
+      return user;
+    }
+    this.logger.log(`User with email ${email} not found. Creating new user.`);
+    user = this.usersRepository.create({
+      email,
+      name: name || email.split('@')[0],
+    });
+    return this.usersRepository.save(user);
+  }
 }

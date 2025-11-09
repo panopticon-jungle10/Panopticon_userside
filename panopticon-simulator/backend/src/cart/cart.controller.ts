@@ -23,7 +23,7 @@ export class CartController {
   @Get(':userId')
   getCart(@Param('userId') userId: string) {
     this.logger.log(`GET /cart/${userId} - Fetching cart`);
-    return this.cartService.findByUserId(userId);
+    return this.cartService.getCart(userId);
   }
 
   @Post('items')

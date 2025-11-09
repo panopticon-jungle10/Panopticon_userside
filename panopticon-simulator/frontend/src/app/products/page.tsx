@@ -3,21 +3,28 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getProducts, addToCart, type Product } from '@/lib/api'
-
-// For demo purposes, using a default user
-const DEFAULT_USER_ID = 'user-1'
+import { getStoredUser, type StoredUser } from '@/lib/auth'
 
 export default function ProductsPage() {
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [addingToCart, setAddingToCart] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<StoredUser | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchData() {
       try {
         const productsData = await getProducts()
         setProducts(productsData)
+        const stored = getStoredUser()
+        if (stored) {
+          setCurrentUser(stored)
+          setAuthError(null)
+        } else {
+          setAuthError('Please sign in on the home page to add items to your cart.')
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error)
       } finally {
@@ -28,9 +35,13 @@ export default function ProductsPage() {
   }, [])
 
   const handleAddToCart = async (productId: string) => {
+    if (!currentUser) {
+      alert('로그인이 필요합니다. 홈에서 사용자 로그인 후 다시 시도하세요.')
+      return
+    }
     try {
       setAddingToCart(productId)
-      await addToCart(DEFAULT_USER_ID, productId, 1)
+      await addToCart(currentUser.id, productId, 1)
       alert('Added to cart!')
     } catch (error) {
       console.error('Failed to add to cart:', error)
@@ -66,6 +77,10 @@ export default function ProductsPage() {
         }}>
           ALL PRODUCTS
         </h2>
+
+        <div style={{ color: '#888', fontSize: '13px' }}>
+          {currentUser ? `Signed in as ${currentUser.email}` : authError || 'Not signed in'}
+        </div>
 
         <button
           onClick={() => router.push('/cart')}
@@ -148,34 +163,40 @@ export default function ProductsPage() {
             </div>
             <button
               onClick={() => handleAddToCart(product.id)}
-              disabled={addingToCart === product.id}
+              disabled={addingToCart === product.id || !currentUser}
               style={{
                 width: '100%',
                 padding: '12px',
-                background: addingToCart === product.id ? '#252525' : '#1a1a1a',
+                background:
+                  addingToCart === product.id || !currentUser ? '#252525' : '#1a1a1a',
                 border: '1px solid #333',
                 borderRadius: '6px',
                 color: '#e0e0e0',
                 fontSize: '14px',
                 letterSpacing: '0.5px',
-                cursor: addingToCart === product.id ? 'not-allowed' : 'pointer',
+                cursor:
+                  addingToCart === product.id || !currentUser ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
-                opacity: addingToCart === product.id ? 0.6 : 1
+                opacity: addingToCart === product.id || !currentUser ? 0.6 : 1
               }}
               onMouseEnter={(e) => {
-                if (addingToCart !== product.id) {
+                if (addingToCart !== product.id && currentUser) {
                   e.currentTarget.style.background = '#252525'
                   e.currentTarget.style.borderColor = '#444'
                 }
               }}
               onMouseLeave={(e) => {
-                if (addingToCart !== product.id) {
+                if (addingToCart !== product.id && currentUser) {
                   e.currentTarget.style.background = '#1a1a1a'
                   e.currentTarget.style.borderColor = '#333'
                 }
               }}
             >
-              {addingToCart === product.id ? 'ADDING...' : 'ADD TO CART'}
+              {!currentUser
+                ? 'SIGN IN TO ADD'
+                : addingToCart === product.id
+                  ? 'ADDING...'
+                  : 'ADD TO CART'}
             </button>
           </div>
         ))}

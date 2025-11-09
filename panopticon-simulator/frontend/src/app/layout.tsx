@@ -15,28 +15,38 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
-          <nav style={{
-            marginBottom: '30px',
-            padding: '25px 0',
-            borderBottom: '1px solid #1f1f1f',
-            background: 'linear-gradient(to bottom, #0a0a0a, transparent)'
-          }}>
-            <h1 style={{
-              margin: 0,
-              fontSize: '28px',
-              fontWeight: '300',
-              letterSpacing: '0.5px',
-              color: '#ffffff'
-            }}>
+          <nav
+            style={{
+              marginBottom: '30px',
+              padding: '25px 0',
+              borderBottom: '1px solid #1f1f1f',
+              background: 'linear-gradient(to bottom, #0a0a0a, transparent)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '20px',
+            }}
+          >
+            <h1
+              style={{
+                margin: 0,
+                fontSize: '28px',
+                fontWeight: '300',
+                letterSpacing: '0.5px',
+                color: '#ffffff',
+              }}
+            >
               E-COMMERCE STORE
             </h1>
-            <div style={{
-              marginTop: '15px',
-              display: 'flex',
-              gap: '30px',
-              fontSize: '14px',
-              letterSpacing: '0.5px'
-            }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '30px',
+                fontSize: '14px',
+                letterSpacing: '0.5px',
+              }}
+            >
               <a href="/">HOME</a>
               <a href="/products">PRODUCTS</a>
               <a href="/cart">CART</a>

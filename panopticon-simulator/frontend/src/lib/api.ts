@@ -53,6 +53,18 @@ export interface Cart {
   updatedAt: string;
 }
 
+export async function loginOrCreate(email: string, name?: string): Promise<User> {
+  const res = await fetch(`${API_URL}/users/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, name }),
+  });
+  if (!res.ok) throw new Error('Failed to login or create user');
+  return res.json();
+}
+
 // Products API
 export async function getProducts(): Promise<Product[]> {
   const res = await fetch(`${API_URL}/products`, {
