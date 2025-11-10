@@ -43,7 +43,7 @@ spec:
               name: postgres-secret
               key: password
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://ingest-server:4318"
+          value: "http://ingest-server.default.svc.cluster.local:4318"
         resources:
           requests:
             memory: "256Mi"

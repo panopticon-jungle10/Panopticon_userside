@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { StructuredLogger } from './common/structured-logger.service';
+import { recordHttpMetrics } from './common/http-metrics';
 
 async function bootstrap() {
   const structuredLogger = new StructuredLogger();
@@ -25,12 +26,19 @@ async function bootstrap() {
         return;
       }
       const elapsed = Number(process.hrtime.bigint() - start) / 1_000_000;
+      const durationMs = Math.round(elapsed * 100) / 100;
       structuredLogger.logHttp({
         method,
         path: originalUrl,
         status: res.statusCode,
-        durationMs: Math.round(elapsed * 100) / 100,
+        durationMs,
         ip,
+      });
+      recordHttpMetrics({
+        method,
+        path: originalUrl,
+        status: res.statusCode,
+        durationMs,
       });
     });
 
