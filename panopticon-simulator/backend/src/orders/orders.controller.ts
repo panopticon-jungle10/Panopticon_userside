@@ -6,17 +6,17 @@ import {
   Body,
   Param,
   Query,
-  Logger,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order } from './order.entity';
+import { StructuredLogger } from '../common/structured-logger.service';
 
 @Controller('orders')
 export class OrdersController {
-  private readonly logger = new Logger(OrdersController.name);
+  private readonly logger = new StructuredLogger(OrdersController.name);
 
   constructor(private readonly ordersService: OrdersService) {}
 

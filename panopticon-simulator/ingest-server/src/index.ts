@@ -11,14 +11,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.raw({ type: 'application/x-protobuf', limit: '50mb' }));
 
 // Logging middleware
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
-});
-
-// Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
-  console.log('[HEALTH] Health check requested');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -112,106 +105,47 @@ app.post('/v1/traces', (req: Request, res: Response) => {
 
 // Metrics endpoint
 app.post('/v1/metrics', (req: Request, res: Response) => {
-  // LOG RAW METRICS DATA
-  console.log('━'.repeat(70));
-  console.log('[RAW METRICS DATA] OpenTelemetry Metrics 원본:');
-  console.log(JSON.stringify(req.body, null, 2));
-  console.log('━'.repeat(70));
-
   const contentType = req.headers['content-type'];
-  console.log('[METRICS] Content-Type:', contentType);
-
   let metricsData: any = null;
 
-  // Handle protobuf format
   if (contentType?.includes('application/x-protobuf')) {
     try {
-      // Protobuf data comes as Buffer through express.raw()
       const buffer = req.body as Buffer;
-      console.log('[METRICS] Received protobuf data, length:', buffer.length);
-
-      // Access the protobuf message type directly from the namespace
-      const ExportMetricsServiceRequest = ($root as any).opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+      const ExportMetricsServiceRequest =
+        ($root as any).opentelemetry.proto.collector.metrics.v1
+          .ExportMetricsServiceRequest;
       const decoded = ExportMetricsServiceRequest.decode(buffer);
       metricsData = ExportMetricsServiceRequest.toObject(decoded, {
         longs: String,
         enums: String,
         bytes: String,
       });
-      console.log('[METRICS] Deserialized protobuf successfully');
     } catch (error) {
       console.error('[METRICS] Error decoding protobuf:', error);
       metricsData = null;
     }
   } else {
-    // Handle JSON format (from backend SDK)
     metricsData = req.body;
   }
 
-  // Extract metric names and values
-  const metricNames: string[] = [];
-  const metricDetails: any[] = [];
+  console.log('━'.repeat(70));
+  console.log('[RAW METRICS DATA] OpenTelemetry Metrics 원본:');
+  console.log(JSON.stringify(metricsData, null, 2));
+  console.log('━'.repeat(70));
 
-  if (metricsData?.resourceMetrics) {
-    metricsData.resourceMetrics.forEach((resourceMetric: any) => {
-      if (resourceMetric.scopeMetrics) {
-        resourceMetric.scopeMetrics.forEach((scopeMetric: any) => {
-          scopeMetric.metrics?.forEach((metric: any) => {
-            if (metric.name) {
-              metricNames.push(metric.name);
+  const customMetrics = transformMetricsToCustomSchema(metricsData);
 
-              // Extract values from data points
-              let values: any[] = [];
-              if (metric.gauge?.dataPoints) {
-                values = metric.gauge.dataPoints.map((dp: any) => ({
-                  value: dp.asDouble || dp.asInt || 'N/A',
-                  timestamp: dp.timeUnixNano
-                }));
-              } else if (metric.sum?.dataPoints) {
-                values = metric.sum.dataPoints.map((dp: any) => ({
-                  value: dp.asDouble || dp.asInt || 'N/A',
-                  timestamp: dp.timeUnixNano
-                }));
-              } else if (metric.histogram?.dataPoints) {
-                values = metric.histogram.dataPoints.map((dp: any) => ({
-                  count: dp.count,
-                  sum: dp.sum,
-                  timestamp: dp.timeUnixNano
-                }));
-              }
-
-              metricDetails.push({
-                name: metric.name,
-                values: values
-              });
-            }
-          });
-        });
-      }
-    });
+  if (customMetrics.length > 0) {
+    console.log('━'.repeat(70));
+    console.log('[METRICS] Structured metrics payload');
+    customMetrics.forEach((record) => console.log(JSON.stringify(record)));
+    console.log('━'.repeat(70));
   }
 
-  console.log('━'.repeat(50));
-  console.log('[METRICS] Received metrics data');
-  console.log('Metrics:', metricNames.slice(0, 5).join(', '), metricNames.length > 5 ? '...' : '');
-  console.log('Total metrics:', metricNames.length);
-  console.log('All metric names:', metricNames.join(', '));
-
-  // Print detailed values for system metrics only
-  console.log('\n[SYSTEM METRICS VALUES]:');
-  metricDetails
-    .filter(m => m.name.startsWith('system.'))
-    .forEach(metric => {
-      const firstValue = metric.values[0];
-      if (firstValue) {
-        const valueStr = firstValue.value !== undefined ? firstValue.value : `count=${firstValue.count}, sum=${firstValue.sum}`;
-        console.log(`  ${metric.name}: ${valueStr}`);
-      }
-    });
-
-  console.log('━'.repeat(50));
-
-  res.status(200).json({ status: 'success' });
+  res.status(200).json({
+    status: 'success',
+    processed: customMetrics.length,
+  });
 });
 
 // Logs endpoint (for OTLP logs)
@@ -228,66 +162,186 @@ app.post('/v1/logs', (req: Request, res: Response) => {
   res.status(200).json({ status: 'success' });
 });
 
+type CustomMetricRecord = {
+  type: 'metric';
+  timestamp: string;
+  service_name: string;
+  environment: string;
+  metric_name: string;
+  value: number | null;
+  labels?: Record<string, string | number>;
+};
+
+type FluentBitRecord = {
+  type?: string | null;
+  timestamp?: string | null;
+  service_name?: string | null;
+  environment?: string | null;
+  level?: string | null;
+  message?: string | null;
+  trace_id?: string | null;
+  span_id?: string | null;
+  http_method?: string | null;
+  http_path?: string | null;
+  http_status_code?: number | null;
+  duration_ms?: number | null;
+  client_ip?: string | null;
+};
+
+const requiredLogFields: Array<keyof FluentBitRecord> = ['timestamp', 'service_name', 'message'];
+
+const kvListToObject = (attributes?: Array<{ key: string; value: any }>): Record<string, any> => {
+  if (!attributes) return {};
+  const result: Record<string, any> = {};
+  attributes.forEach(attr => {
+    if (!attr || typeof attr !== 'object') return;
+    const value = attr.value || {};
+    const normalized =
+      value.stringValue ??
+      value.doubleValue ??
+      value.intValue ??
+      value.boolValue ??
+      value.bytesValue ??
+      value.arrayValue ??
+      value.kvlistValue ??
+      value;
+    result[attr.key] = normalized;
+  });
+  return result;
+};
+
+const nanoToISOString = (nano?: string | number | null) => {
+  if (!nano) return new Date().toISOString();
+  const asNumber = typeof nano === 'string' ? Number(nano) : nano;
+  if (!Number.isFinite(asNumber)) return new Date().toISOString();
+  const millis = asNumber / 1_000_000;
+  return new Date(millis).toISOString();
+};
+
+const extractValueFromDataPoint = (dp: any): number | null => {
+  if (dp == null) return null;
+  const candidates = [
+    dp.asDouble,
+    dp.asInt,
+    dp.value,
+    dp.sum,
+    dp.count !== undefined && dp.count !== null ? dp.count : undefined,
+    dp.gauge,
+  ];
+  const found = candidates.find(v => typeof v === 'number' || typeof v === 'string');
+  if (found === undefined || found === null) return null;
+  const num = Number(found);
+  return Number.isFinite(num) ? num : null;
+};
+
+const attributesToLabels = (resourceAttrs: Record<string, any>, dataPointAttrs?: Array<{ key: string; value: any }>) => {
+  const labels: Record<string, string | number> = {};
+  const combined = { ...resourceAttrs, ...kvListToObject(dataPointAttrs) };
+  Object.entries(combined).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    if (typeof value === 'object') return;
+    labels[key] = value;
+  });
+  return labels;
+};
+
+const transformMetricsToCustomSchema = (metricsData: any): CustomMetricRecord[] => {
+  if (!metricsData?.resourceMetrics) return [];
+  const records: CustomMetricRecord[] = [];
+
+  metricsData.resourceMetrics.forEach((resourceMetric: any) => {
+    const resourceAttrs = kvListToObject(resourceMetric?.resource?.attributes);
+    const serviceName =
+      (resourceAttrs['service.name'] as string) ||
+      (resourceAttrs['host.name'] as string) ||
+      'unknown-service';
+    const environment =
+      (resourceAttrs['deployment.environment'] as string) ||
+      (resourceAttrs['environment'] as string) ||
+      'unknown';
+
+    resourceMetric.scopeMetrics?.forEach((scopeMetric: any) => {
+      scopeMetric.metrics?.forEach((metric: any) => {
+        const metricName = metric?.name || 'unknown_metric';
+        const dataPoints =
+          metric?.gauge?.dataPoints ||
+          metric?.sum?.dataPoints ||
+          metric?.histogram?.dataPoints ||
+          [];
+
+        dataPoints.forEach((dp: any) => {
+          const value = extractValueFromDataPoint(dp);
+          const timestamp = nanoToISOString(dp?.timeUnixNano);
+          const labels = attributesToLabels(resourceAttrs, dp?.attributes);
+
+          records.push({
+            type: 'metric',
+            timestamp,
+            service_name: serviceName,
+            environment,
+            metric_name: metricName,
+            value,
+            labels: Object.keys(labels).length > 0 ? labels : undefined,
+          });
+        });
+      });
+    });
+  });
+
+  return records;
+};
+
+const sanitizeRecord = (entry: FluentBitRecord): FluentBitRecord => {
+  return {
+    type: entry.type ?? 'log',
+    timestamp: entry.timestamp ?? null,
+    service_name: entry.service_name ?? 'unknown',
+    environment: entry.environment ?? 'unknown',
+    level: entry.level ?? 'INFO',
+    message: entry.message ?? '',
+    trace_id: entry.trace_id ?? null,
+    span_id: entry.span_id ?? null,
+    http_method: entry.http_method,
+    http_path: entry.http_path,
+    http_status_code: entry.http_status_code,
+    duration_ms: entry.duration_ms,
+    client_ip: entry.client_ip,
+  };
+};
+
+const isValidRecord = (record: FluentBitRecord) =>
+  requiredLogFields.every(field => Boolean(record[field]));
+
 // Fluent-bit endpoint (HTTP output plugin)
 app.post('/fluent-bit/logs', (req: Request, res: Response) => {
-  // LOG RAW DATA - 원본 JSON 데이터 출력
-  console.log('━'.repeat(70));
-  console.log('[RAW DATA] Fluent Bit이 보낸 날것의 데이터:');
-  console.log(JSON.stringify(req.body, null, 2));
-  console.log('━'.repeat(70));
-
-  if (Array.isArray(req.body)) {
-    // Extract actual log messages
-    const logMessages = req.body.map((entry: any) => {
-      // Parse the log field which contains the actual log line
-      const rawLog = entry.log || entry.message || '';
-
-      // Extract the actual application log message (after the timestamp and docker formatting)
-      // Format: "2025-11-09T10:56:47.232525011Z stdout F [actual log message]"
-      const logMatch = rawLog.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s+\w+\s+F\s+(.+)/);
-      const logMessage = logMatch ? logMatch[1] : rawLog;
-
-      const namespace = entry.kubernetes?.namespace_name || 'unknown';
-      const podName = entry.kubernetes?.pod_name || 'unknown';
-      const containerName = entry.kubernetes?.container_name || 'unknown';
-      const appLabel = entry.kubernetes?.labels?.app || 'unknown';
-      const timestamp = entry.timestamp || entry['@timestamp'] || 'unknown';
-
-      return {
-        timestamp,
-        namespace,
-        podName,
-        containerName,
-        appLabel,
-        log: logMessage
-      };
-    });
-
-    // Skip if no meaningful logs
-    if (logMessages.length === 0) {
-      res.status(200).json({ status: 'success' });
-      return;
-    }
-
-    // Filter out health check logs for cleaner output
-    const nonHealthCheckLogs = logMessages.filter(msg =>
-      !msg.log.includes('Health check') && !msg.log.includes('GET /health')
-    );
-
-    // If we have interesting (non-health) logs, print them
-    if (nonHealthCheckLogs.length > 0) {
-      console.log('━'.repeat(70));
-      console.log(`[LOGS] ${nonHealthCheckLogs.length} log entries from ${nonHealthCheckLogs[0].appLabel}`);
-      nonHealthCheckLogs.forEach((msg, i) => {
-        // Remove ANSI color codes for cleaner output
-        const cleanLog = msg.log.replace(/\u001b\[\d+(?:;\d+)*m/g, '');
-        console.log(`  ${cleanLog}`);
-      });
-      console.log('━'.repeat(70));
-    }
+  if (!Array.isArray(req.body)) {
+    console.warn('[FLUENT-BIT] Payload must be an array. Ignoring request.');
+    res.status(400).json({ status: 'error', message: 'Payload must be an array' });
+    return;
   }
 
-  res.status(200).json({ status: 'success' });
+  const sanitized = req.body
+    .filter(entry => entry && typeof entry === 'object')
+    .map((entry: FluentBitRecord) => sanitizeRecord(entry));
+
+  const validRecords = sanitized.filter(isValidRecord);
+  const appRecords = validRecords.filter(record => record.type === 'log');
+  const discarded = sanitized.length - validRecords.length;
+
+  if (appRecords.length > 0) {
+    console.log('━'.repeat(70));
+    console.log(`[FLUENT-BIT] Total ${appRecords.length} log entries (discarded ${discarded})`);
+    appRecords.forEach(record => console.log(JSON.stringify(record, null, 2)));
+    console.log('━'.repeat(70));
+  } else {
+    console.log('[FLUENT-BIT] No valid log entries in payload.');
+  }
+
+  res.status(200).json({
+    status: 'success',
+    processed: validRecords.length,
+    discarded,
+  });
 });
 
 // Generic data endpoint

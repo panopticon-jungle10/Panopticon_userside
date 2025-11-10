@@ -1,7 +1,6 @@
 import {
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -9,10 +8,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { StructuredLogger } from '../common/structured-logger.service';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
-  private readonly logger = new Logger(UsersService.name);
+  private readonly logger = new StructuredLogger(UsersService.name);
 
   constructor(
     @InjectRepository(User)

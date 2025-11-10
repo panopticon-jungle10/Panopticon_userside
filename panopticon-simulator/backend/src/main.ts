@@ -4,26 +4,34 @@ import '../otel-config';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { StructuredLogger } from './common/structured-logger.service';
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const structuredLogger = new StructuredLogger();
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    logger: structuredLogger,
+  });
+  app.useLogger(structuredLogger);
+  Logger.overrideLogger(structuredLogger);
 
   // HTTP Request Logging Middleware
   app.use((req: any, res: any, next: any) => {
-    const start = Date.now();
+    const start = process.hrtime.bigint();
     const { method, originalUrl, ip } = req;
 
     res.on('finish', () => {
-      const duration = Date.now() - start;
-      const { statusCode } = res;
-      const logMessage = `${method} ${originalUrl} ${statusCode} - ${duration}ms - ${ip}`;
-
-      if (statusCode >= 400) {
-        logger.error(logMessage);
-      } else {
-        logger.log(logMessage);
+      if (originalUrl === '/health') {
+        return;
       }
+      const elapsed = Number(process.hrtime.bigint() - start) / 1_000_000;
+      structuredLogger.logHttp({
+        method,
+        path: originalUrl,
+        status: res.statusCode,
+        durationMs: Math.round(elapsed * 100) / 100,
+        ip,
+      });
     });
 
     next();
@@ -44,8 +52,8 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  logger.log(`Application is running on: http://localhost:${port}`);
-  logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  structuredLogger.log(`Application is running on: http://localhost:${port}`);
+  structuredLogger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 }
 
 bootstrap();

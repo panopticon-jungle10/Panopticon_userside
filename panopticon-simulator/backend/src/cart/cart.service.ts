@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Cart } from './cart.entity';
@@ -7,6 +7,7 @@ import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { ProductsService } from '../products/products.service';
 import { UsersService } from '../users/users.service';
+import { StructuredLogger } from '../common/structured-logger.service';
 
 type CartResponse = {
   id: string;
@@ -24,7 +25,7 @@ type CartResponse = {
 
 @Injectable()
 export class CartService {
-  private readonly logger = new Logger(CartService.name);
+  private readonly logger = new StructuredLogger(CartService.name);
 
   constructor(
     @InjectRepository(Cart)

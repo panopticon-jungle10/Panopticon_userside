@@ -7,17 +7,17 @@ import {
   Body,
   Param,
   Query,
-  Logger,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { StructuredLogger } from '../common/structured-logger.service';
 
 @Controller('products')
 export class ProductsController {
-  private readonly logger = new Logger(ProductsController.name);
+  private readonly logger = new StructuredLogger(ProductsController.name);
 
   constructor(private readonly productsService: ProductsService) {}
 

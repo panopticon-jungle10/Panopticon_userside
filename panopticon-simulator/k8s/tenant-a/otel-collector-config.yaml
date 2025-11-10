@@ -84,9 +84,8 @@ data:
 
       # Export to ingest-server (JSON format)
       otlphttp:
-        endpoint: http://ingest-server.tenant-a.svc.cluster.local:4318
+        endpoint: http://ingest-server.default.svc.cluster.local:4318
         timeout: 10s
-        encoding: json
         tls:
           insecure: true
 
