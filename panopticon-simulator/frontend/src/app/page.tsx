@@ -8,7 +8,7 @@ import {
   type Product,
   type User,
 } from '@/lib/api'
-import { getStoredUser, setStoredUser, type StoredUser } from '@/lib/auth'
+import { clearStoredUser, getStoredUser, setStoredUser, type StoredUser } from '@/lib/auth'
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -22,10 +22,7 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [productsData, usersData] = await Promise.all([
-          getProducts(),
-          getUsers(),
-        ])
+        const [productsData, usersData] = await Promise.all([getProducts(), getUsers()])
         setProducts(productsData.slice(0, 3)) // Show only 3 products
         setUsers(usersData)
         const stored = getStoredUser()
@@ -39,6 +36,15 @@ export default function HomePage() {
       }
     }
     fetchData()
+
+    function handleUserChange() {
+      setCurrentUser(getStoredUser())
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('panopticon-user-change', handleUserChange)
+      return () => window.removeEventListener('panopticon-user-change', handleUserChange)
+    }
   }, [])
 
   if (loading) {
@@ -68,6 +74,11 @@ export default function HomePage() {
       console.error('Login failed', error)
       setAuthError('Login failed. Please try again.')
     }
+  }
+
+  function handleLogout() {
+    clearStoredUser()
+    setCurrentUser(null)
   }
 
   return (
@@ -146,7 +157,23 @@ export default function HomePage() {
             </>
           )}
           {currentUser && (
-            <p style={{ color: '#60a5fa' }}>Welcome back, {currentUser.name || currentUser.email}!</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#60a5fa' }}>
+              <span>Welcome back, {currentUser.name || currentUser.email}!</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{
+                  padding: '6px 12px',
+                  background: 'transparent',
+                  border: '1px solid #444',
+                  borderRadius: '6px',
+                  color: '#ccc',
+                  cursor: 'pointer',
+                }}
+              >
+                Logout
+              </button>
+            </div>
           )}
         </form>
 

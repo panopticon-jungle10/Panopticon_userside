@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import dynamic from 'next/dynamic'
+
+const AuthStatus = dynamic(() => import('../components/AuthStatus'), { ssr: false })
 
 export const metadata: Metadata = {
   title: 'E-commerce Store',
@@ -51,6 +54,8 @@ export default function RootLayout({
               <a href="/products">PRODUCTS</a>
               <a href="/cart">CART</a>
             </div>
+
+            <AuthStatus />
           </nav>
           <main>{children}</main>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   getCart,
@@ -20,18 +20,7 @@ export default function CartPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const stored = getStoredUser()
-    if (stored) {
-      setUserId(stored.id)
-      fetchCart(stored.id)
-    } else {
-      setLoading(false)
-      setAuthError('로그인이 필요합니다. 홈에서 사용자 로그인 후 다시 시도하세요.')
-    }
-  }, [])
-
-  async function fetchCart(currentUserId: string) {
+  const fetchCart = useCallback(async (currentUserId: string) => {
     try {
       setLoading(true)
       const cartData = await getCart(currentUserId)
@@ -41,7 +30,40 @@ export default function CartPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const stored = getStoredUser()
+    if (stored) {
+      setUserId(stored.id)
+      fetchCart(stored.id)
+      setAuthError(null)
+    } else {
+      setLoading(false)
+      setAuthError('로그인이 필요합니다. 홈에서 사용자 로그인 후 다시 시도하세요.')
+    }
+  }, [fetchCart])
+
+  useEffect(() => {
+    function handleUserChange() {
+      const stored = getStoredUser()
+      if (stored) {
+        setUserId(stored.id)
+        fetchCart(stored.id)
+        setAuthError(null)
+      } else {
+        setUserId(null)
+        setCart(null)
+        setAuthError('로그인이 필요합니다. 홈에서 사용자 로그인 후 다시 시도하세요.')
+        setLoading(false)
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('panopticon-user-change', handleUserChange)
+      return () => window.removeEventListener('panopticon-user-change', handleUserChange)
+    }
+  }, [fetchCart])
 
   async function handleQuantityChange(productId: string, newQuantity: number) {
     if (!userId) return

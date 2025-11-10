@@ -34,6 +34,21 @@ export default function ProductsPage() {
     fetchData()
   }, [])
 
+  useEffect(() => {
+    function handleUserChange() {
+      const stored = getStoredUser()
+      setCurrentUser(stored)
+      setAuthError(
+        stored ? null : 'Please sign in on the home page to add items to your cart.',
+      )
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('panopticon-user-change', handleUserChange)
+      return () => window.removeEventListener('panopticon-user-change', handleUserChange)
+    }
+  }, [])
+
   const handleAddToCart = async (productId: string) => {
     if (!currentUser) {
       alert('로그인이 필요합니다. 홈에서 사용자 로그인 후 다시 시도하세요.')
