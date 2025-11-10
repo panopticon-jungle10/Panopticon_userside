@@ -34,17 +34,11 @@ data:
         K8S-Logging.Parser  On
         K8S-Logging.Exclude Off
 
-    [FILTER]
-        Name              lua
-        Match             kube.*
-        script            /fluent-bit/etc/shape.lua
-        call              shape_record
-
-    [FILTER]
-        Name              record_modifier
-        Match             kube.*
-        Remove            stream
-        Remove            kubernetes
+    # [FILTER]
+    #     Name              lua
+    #     Match             kube.*
+    #     script            /fluent-bit/etc/shape.lua
+    #     call              shape_record
 
     [OUTPUT]
         Name  http
