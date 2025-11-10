@@ -24,83 +24,42 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Traces endpoint
 app.post('/v1/traces', (req: Request, res: Response) => {
-  // LOG RAW TRACE DATA
-  console.log('━'.repeat(70));
-  console.log('[RAW TRACE DATA] OpenTelemetry Trace 원본:');
-  console.log(JSON.stringify(req.body, null, 2));
-  console.log('━'.repeat(70));
+  const contentType = req.headers['content-type'];
+  let traceData: any = null;
 
-  // Extract trace information from all spans
-  const traceInfo: any = {
-    endpoints: new Set(),
-    methods: new Set(),
-    statusCodes: new Set(),
-    spanCount: 0,
-    spanNames: new Set(),
-  };
-
-  if (req.body?.resourceSpans) {
-    req.body.resourceSpans.forEach((resourceSpan: any) => {
-      resourceSpan.scopeSpans?.forEach((scopeSpan: any) => {
-        scopeSpan.spans?.forEach((span: any) => {
-          traceInfo.spanCount++;
-          if (span.name) {
-            traceInfo.spanNames.add(span.name);
-          }
-
-          if (span?.attributes) {
-            // HTTP target (endpoint)
-            const httpTarget = span.attributes.find((attr: any) => attr.key === 'http.target' || attr.key === 'http.route');
-            if (httpTarget) {
-              traceInfo.endpoints.add(httpTarget.value.stringValue);
-            }
-
-            // HTTP method
-            const httpMethod = span.attributes.find((attr: any) => attr.key === 'http.method');
-            if (httpMethod) {
-              traceInfo.methods.add(httpMethod.value.stringValue);
-            }
-
-            // HTTP status code
-            const httpStatus = span.attributes.find((attr: any) => attr.key === 'http.status_code');
-            if (httpStatus) {
-              traceInfo.statusCodes.add(httpStatus.value.intValue);
-            }
-          }
-        });
+  if (contentType?.includes('application/x-protobuf')) {
+    try {
+      const buffer = req.body as Buffer;
+      const ExportTraceServiceRequest =
+        ($root as any).opentelemetry.proto.collector.trace.v1
+          .ExportTraceServiceRequest;
+      const decoded = ExportTraceServiceRequest.decode(buffer);
+      traceData = ExportTraceServiceRequest.toObject(decoded, {
+        longs: String,
+        enums: String,
+        bytes: String,
       });
-    });
-  }
-
-  const endpoints = Array.from(traceInfo.endpoints);
-  const methods = Array.from(traceInfo.methods);
-  const spanNames = Array.from(traceInfo.spanNames);
-
-  // Skip health check logs - TEMPORARILY DISABLED FOR DEBUGGING
-  // const isHealthCheck = endpoints.includes('/health') || spanNames.some((name: any) => name?.includes('/health'));
-  // if (isHealthCheck) {
-  //   res.status(200).json({ status: 'success' });
-  //   return;
-  // }
-
-  console.log('━'.repeat(50));
-  console.log('[TRACES] Trace received');
-  console.log('Spans:', traceInfo.spanCount);
-  console.log('Span names:', spanNames.slice(0, 3).join(', '));
-  if (methods.length > 0 && endpoints.length > 0) {
-    console.log('API Calls:', methods.map((m, i) => `${m} ${endpoints[i] || endpoints[0]}`).join(', '));
-  } else if (endpoints.length > 0) {
-    console.log('Endpoints:', endpoints.join(', '));
+    } catch (error) {
+      console.error('[TRACES] Error decoding protobuf:', error);
+      traceData = null;
+    }
   } else {
-    // No endpoints found, show span names for debugging
-    console.log('No HTTP endpoints found. Span names:', spanNames.join(', '));
+    traceData = req.body;
   }
-  if (traceInfo.statusCodes.size > 0) {
-    console.log('Status codes:', Array.from(traceInfo.statusCodes).join(', '));
-  }
-  console.log('━'.repeat(50));
 
-  res.status(200).json({ status: 'success' });
+  const spans = transformSpansToCustomSchema(traceData);
+
+  if (spans.length > 0) {
+    console.log('━'.repeat(70));
+    console.log('[TRACES] Structured spans payload');
+    spans.forEach((span) => console.log(JSON.stringify(span)));
+    console.log('━'.repeat(70));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    processed: spans.length,
+  });
 });
 
 // Metrics endpoint
@@ -169,6 +128,24 @@ type CustomMetricRecord = {
   environment: string;
   metric_name: string;
   value: number | null;
+  labels?: Record<string, string | number>;
+};
+
+type CustomSpanRecord = {
+  type: 'span';
+  timestamp: string;
+  service_name: string;
+  environment: string;
+  trace_id: string | null;
+  span_id: string | null;
+  parent_span_id?: string | null;
+  name: string;
+  duration_ms: number | null;
+  status: string;
+  kind?: string;
+  http_method?: string;
+  http_path?: string;
+  http_status_code?: number | null;
   labels?: Record<string, string | number>;
 };
 
@@ -283,6 +260,89 @@ const transformMetricsToCustomSchema = (metricsData: any): CustomMetricRecord[] 
             value,
             labels: Object.keys(labels).length > 0 ? labels : undefined,
           });
+        });
+      });
+    });
+  });
+
+  return records;
+};
+
+const transformSpansToCustomSchema = (traceData: any): CustomSpanRecord[] => {
+  if (!traceData?.resourceSpans) return [];
+  const records: CustomSpanRecord[] = [];
+  const kindMap: Record<number, string> = {
+    0: 'SPAN_KIND_UNSPECIFIED',
+    1: 'INTERNAL',
+    2: 'SERVER',
+    3: 'CLIENT',
+    4: 'PRODUCER',
+    5: 'CONSUMER',
+  };
+
+  traceData.resourceSpans.forEach((resourceSpan: any) => {
+    const resourceAttrs = kvListToObject(resourceSpan?.resource?.attributes);
+    const serviceName =
+      (resourceAttrs['service.name'] as string) ||
+      (resourceAttrs['host.name'] as string) ||
+      'unknown-service';
+    const environment =
+      (resourceAttrs['deployment.environment'] as string) ||
+      (resourceAttrs['environment'] as string) ||
+      'unknown';
+
+    resourceSpan.scopeSpans?.forEach((scopeSpan: any) => {
+      scopeSpan.spans?.forEach((span: any) => {
+        const attributes = kvListToObject(span?.attributes);
+        const start = Number(span?.startTimeUnixNano ?? 0);
+        const end = Number(span?.endTimeUnixNano ?? 0);
+        const durationMs =
+          Number.isFinite(start) && Number.isFinite(end)
+            ? Math.max((end - start) / 1_000_000, 0)
+            : null;
+        const statusCode = span?.status?.code;
+        const status =
+          statusCode === 2 ? 'ERROR' : statusCode === 1 ? 'OK' : 'UNSET';
+
+        const httpMethod =
+          attributes['http.method'] || attributes['http.request.method'];
+        const httpPath =
+          attributes['http.target'] ||
+          attributes['http.route'] ||
+          attributes['http.url'] ||
+          attributes['http.path'];
+        const httpStatus =
+          attributes['http.status_code'] ||
+          attributes['http.response.status_code'];
+
+        const spanLabels: Record<string, string | number> = {};
+        Object.entries(attributes).forEach(([key, value]) => {
+          if (
+            value === undefined ||
+            value === null ||
+            typeof value === 'object'
+          ) {
+            return;
+          }
+          spanLabels[key] = value;
+        });
+
+        records.push({
+          type: 'span',
+          timestamp: nanoToISOString(span?.startTimeUnixNano),
+          service_name: serviceName,
+          environment,
+          trace_id: span?.traceId || null,
+          span_id: span?.spanId || null,
+          parent_span_id: span?.parentSpanId || null,
+          name: span?.name || 'unknown-span',
+          duration_ms: durationMs,
+          status,
+          kind: kindMap[span?.kind ?? 0],
+          http_method: httpMethod,
+          http_path: httpPath,
+          http_status_code: httpStatus ? Number(httpStatus) : undefined,
+          labels: Object.keys(spanLabels).length > 0 ? spanLabels : undefined,
         });
       });
     });
