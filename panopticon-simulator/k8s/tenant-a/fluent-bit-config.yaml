@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: tenant-a
+  labels:
+    app: fluent-bit
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        1
+        Daemon       Off
+        Log_Level    info
+        Parsers_File parsers.conf
+
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*_tenant-a_*.log
+        multiline.parser  docker, cri
+        Tag               kube.*
+        Refresh_Interval  5
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Keep_Log            Off
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude Off
+
+    [FILTER]
+        Name              lua
+        Match             kube.*
+        script            /fluent-bit/etc/shape.lua
+        call              shape_record
+
+    [FILTER]
+        Name              record_modifier
+        Match             kube.*
+        Remove            stream
+        Remove            kubernetes
+
+    [OUTPUT]
+        Name  http
+        Match *
+        Host  ingest-server.tenant-a.svc.cluster.local
+        Port  4318
+        URI   /fluent-bit/logs
+        Format json
+        Json_date_key timestamp
+        Json_date_format iso8601
+
+  parsers.conf: |
+    [PARSER]
+        Name   docker
+        Format json
+        Time_Key time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep On
+
+    [PARSER]
+        Name   cri
+        Format regex
+        Regex  ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+  shape.lua: |
+    local allowed_apps = {
+      backend = true,
+      frontend = true
+    }
+
+    function shape_record(tag, timestamp, record)
+      local app = nil
+      if record["kubernetes"] and record["kubernetes"]["labels"] then
+        app = record["kubernetes"]["labels"]["app"]
+      end
+
+      if app == nil or allowed_apps[app] ~= true then
+        return -1, 0, 0
+      end
+
+      local payload = {
+        type = record["type"] or "log",
+        timestamp = record["timestamp"] or record["time"],
+        service_name = record["service_name"] or app,
+        environment = record["environment"],
+        level = record["level"] or "INFO",
+        message = record["message"] or record["log"],
+        trace_id = record["trace_id"],
+        span_id = record["span_id"],
+      }
+
+      if record["http_method"] then
+        payload["http_method"] = record["http_method"]
+        payload["http_path"] = record["http_path"]
+        payload["http_status_code"] = record["http_status_code"]
+        payload["duration_ms"] = record["duration_ms"]
+        payload["client_ip"] = record["client_ip"]
+      end
+
+      return 1, payload
+    end

@@ -6,24 +6,24 @@ import {
   Delete,
   Body,
   Param,
-  Logger,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+import { StructuredLogger } from '../common/structured-logger.service';
 
 @Controller('cart')
 export class CartController {
-  private readonly logger = new Logger(CartController.name);
+  private readonly logger = new StructuredLogger(CartController.name);
 
   constructor(private readonly cartService: CartService) {}
 
   @Get(':userId')
   getCart(@Param('userId') userId: string) {
     this.logger.log(`GET /cart/${userId} - Fetching cart`);
-    return this.cartService.findByUserId(userId);
+    return this.cartService.getCart(userId);
   }
 
   @Post('items')

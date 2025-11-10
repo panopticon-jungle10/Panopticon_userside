@@ -1,58 +1,58 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { StructuredLogger } from '../common/structured-logger.service';
 
 @Injectable()
-export class ProductsService {
-  private readonly logger = new Logger(ProductsService.name);
-  private products: Product[] = [];
+export class ProductsService implements OnModuleInit {
+  private readonly logger = new StructuredLogger(ProductsService.name);
 
-  constructor() {
-    // Initialize with some sample products
-    this.products = [
-      {
-        id: uuidv4(),
-        name: 'Laptop',
-        description: 'High-performance laptop',
-        price: 1200,
-        stock: 50,
-        category: 'Electronics',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: uuidv4(),
-        name: 'Wireless Mouse',
-        description: 'Ergonomic wireless mouse',
-        price: 25,
-        stock: 200,
-        category: 'Accessories',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: uuidv4(),
-        name: 'Mechanical Keyboard',
-        description: 'RGB mechanical keyboard',
-        price: 80,
-        stock: 100,
-        category: 'Accessories',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ];
+  constructor(
+    @InjectRepository(Product)
+    private readonly productsRepository: Repository<Product>,
+  ) {}
+
+  async onModuleInit() {
+    const count = await this.productsRepository.count();
+    if (count === 0) {
+      await this.productsRepository.save([
+        {
+          name: 'Laptop',
+          description: 'High-performance laptop',
+          price: 1200,
+          stock: 50,
+          category: 'Electronics',
+        },
+        {
+          name: 'Wireless Mouse',
+          description: 'Ergonomic wireless mouse',
+          price: 25,
+          stock: 200,
+          category: 'Accessories',
+        },
+        {
+          name: 'Mechanical Keyboard',
+          description: 'RGB mechanical keyboard',
+          price: 80,
+          stock: 100,
+          category: 'Accessories',
+        },
+      ]);
+      this.logger.log('Seeded default products');
+    }
   }
 
-  findAll(): Product[] {
-    this.logger.log(`Finding all products. Total: ${this.products.length}`);
-    return this.products;
+  findAll(): Promise<Product[]> {
+    this.logger.log('Finding all products');
+    return this.productsRepository.find();
   }
 
-  findOne(id: string): Product {
+  async findOne(id: string): Promise<Product> {
     this.logger.log(`Finding product with id: ${id}`);
-    const product = this.products.find((p) => p.id === id);
+    const product = await this.productsRepository.findOne({ where: { id } });
     if (!product) {
       this.logger.warn(`Product with id ${id} not found`);
       throw new NotFoundException(`Product with id ${id} not found`);
@@ -60,50 +60,34 @@ export class ProductsService {
     return product;
   }
 
-  create(createProductDto: CreateProductDto): Product {
+  async create(createProductDto: CreateProductDto): Promise<Product> {
     this.logger.log(`Creating new product: ${createProductDto.name}`);
-    const newProduct: Product = {
-      id: uuidv4(),
-      ...createProductDto,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.products.push(newProduct);
-    this.logger.log(`Product created successfully with id: ${newProduct.id}`);
-    return newProduct;
+    const product = this.productsRepository.create(createProductDto);
+    const saved = await this.productsRepository.save(product);
+    this.logger.log(`Product created successfully with id: ${saved.id}`);
+    return saved;
   }
 
-  update(id: string, updateProductDto: UpdateProductDto): Product {
+  async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
     this.logger.log(`Updating product with id: ${id}`);
-    const productIndex = this.products.findIndex((p) => p.id === id);
-    if (productIndex === -1) {
-      this.logger.warn(`Product with id ${id} not found for update`);
-      throw new NotFoundException(`Product with id ${id} not found`);
-    }
-
-    const updatedProduct = {
-      ...this.products[productIndex],
+    const product = await this.findOne(id);
+    const updated = await this.productsRepository.save({
+      ...product,
       ...updateProductDto,
-      updatedAt: new Date(),
-    };
-    this.products[productIndex] = updatedProduct;
+    });
     this.logger.log(`Product with id ${id} updated successfully`);
-    return updatedProduct;
+    return updated;
   }
 
-  remove(id: string): void {
+  async remove(id: string): Promise<void> {
     this.logger.log(`Removing product with id: ${id}`);
-    const productIndex = this.products.findIndex((p) => p.id === id);
-    if (productIndex === -1) {
-      this.logger.warn(`Product with id ${id} not found for removal`);
-      throw new NotFoundException(`Product with id ${id} not found`);
-    }
-    this.products.splice(productIndex, 1);
+    const product = await this.findOne(id);
+    await this.productsRepository.remove(product);
     this.logger.log(`Product with id ${id} removed successfully`);
   }
 
-  findByCategory(category: string): Product[] {
+  findByCategory(category: string): Promise<Product[]> {
     this.logger.log(`Finding products by category: ${category}`);
-    return this.products.filter((p) => p.category === category);
+    return this.productsRepository.find({ where: { category } });
   }
 }

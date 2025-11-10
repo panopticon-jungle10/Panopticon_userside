@@ -1,21 +1,20 @@
-import { Controller, Get, Logger } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
+import { StructuredLogger } from './common/structured-logger.service';
 
 @Controller()
 export class AppController {
-  private readonly logger = new Logger(AppController.name);
+  private readonly logger = new StructuredLogger(AppController.name);
 
   constructor(private readonly appService: AppService) {}
 
   @Get()
   getHello(): string {
-    this.logger.log('Health check endpoint called');
     return this.appService.getHello();
   }
 
   @Get('health')
   healthCheck() {
-    this.logger.log('Health check requested');
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),

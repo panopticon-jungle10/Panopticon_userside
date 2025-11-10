@@ -1,40 +1,77 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCart, updateCartItemQuantity, removeFromCart, clearCart, type Cart, createOrder } from '@/lib/api'
-
-// For demo purposes, using a default user
-const DEFAULT_USER_ID = 'user-1'
+import {
+  getCart,
+  updateCartItemQuantity,
+  removeFromCart,
+  clearCart,
+  type Cart,
+  createOrder,
+} from '@/lib/api'
+import { getStoredUser } from '@/lib/auth'
 
 export default function CartPage() {
   const router = useRouter()
   const [cart, setCart] = useState<Cart | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchCart()
-  }, [])
-
-  async function fetchCart() {
+  const fetchCart = useCallback(async (currentUserId: string) => {
     try {
       setLoading(true)
-      const cartData = await getCart(DEFAULT_USER_ID)
+      const cartData = await getCart(currentUserId)
       setCart(cartData)
     } catch (error) {
       console.error('Failed to fetch cart:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const stored = getStoredUser()
+    if (stored) {
+      setUserId(stored.id)
+      fetchCart(stored.id)
+      setAuthError(null)
+    } else {
+      setLoading(false)
+      setAuthError('로그인이 필요합니다. 홈에서 사용자 로그인 후 다시 시도하세요.')
+    }
+  }, [fetchCart])
+
+  useEffect(() => {
+    function handleUserChange() {
+      const stored = getStoredUser()
+      if (stored) {
+        setUserId(stored.id)
+        fetchCart(stored.id)
+        setAuthError(null)
+      } else {
+        setUserId(null)
+        setCart(null)
+        setAuthError('로그인이 필요합니다. 홈에서 사용자 로그인 후 다시 시도하세요.')
+        setLoading(false)
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('panopticon-user-change', handleUserChange)
+      return () => window.removeEventListener('panopticon-user-change', handleUserChange)
+    }
+  }, [fetchCart])
 
   async function handleQuantityChange(productId: string, newQuantity: number) {
+    if (!userId) return
     if (newQuantity < 1) return
 
     try {
       setUpdating(true)
-      const updatedCart = await updateCartItemQuantity(DEFAULT_USER_ID, productId, newQuantity)
+      const updatedCart = await updateCartItemQuantity(userId, productId, newQuantity)
       setCart(updatedCart)
     } catch (error) {
       console.error('Failed to update quantity:', error)
@@ -45,9 +82,10 @@ export default function CartPage() {
   }
 
   async function handleRemoveItem(productId: string) {
+    if (!userId) return
     try {
       setUpdating(true)
-      const updatedCart = await removeFromCart(DEFAULT_USER_ID, productId)
+      const updatedCart = await removeFromCart(userId, productId)
       setCart(updatedCart)
     } catch (error) {
       console.error('Failed to remove item:', error)
@@ -58,11 +96,12 @@ export default function CartPage() {
   }
 
   async function handleClearCart() {
+    if (!userId) return
     if (!confirm('Are you sure you want to clear your cart?')) return
 
     try {
       setUpdating(true)
-      const updatedCart = await clearCart(DEFAULT_USER_ID)
+      const updatedCart = await clearCart(userId)
       setCart(updatedCart)
     } catch (error) {
       console.error('Failed to clear cart:', error)
@@ -73,7 +112,7 @@ export default function CartPage() {
   }
 
   async function handleCheckout() {
-    if (!cart || cart.items.length === 0) return
+    if (!userId || !cart || cart.items.length === 0) return
 
     try {
       setUpdating(true)
@@ -82,10 +121,8 @@ export default function CartPage() {
         quantity: item.quantity,
       }))
 
-      const order = await createOrder(DEFAULT_USER_ID, orderItems)
-
-      // Clear cart after successful order
-      await clearCart(DEFAULT_USER_ID)
+      const order = await createOrder(userId, orderItems)
+      await clearCart(userId)
 
       alert(`Order created successfully! Order ID: ${order.id}`)
       router.push('/')
@@ -101,6 +138,14 @@ export default function CartPage() {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0', color: '#666' }}>
         Loading cart...
+      </div>
+    )
+  }
+
+  if (authError) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 0', color: '#f87171' }}>
+        {authError}
       </div>
     )
   }

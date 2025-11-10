@@ -1,39 +1,43 @@
-import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { StructuredLogger } from '../common/structured-logger.service';
 
 @Injectable()
-export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
-  private users: User[] = [];
+export class UsersService implements OnModuleInit {
+  private readonly logger = new StructuredLogger(UsersService.name);
 
-  constructor() {
-    // Initialize with sample users
-    this.users = [
-      {
-        id: uuidv4(),
-        email: 'john@example.com',
-        name: 'John Doe',
-        createdAt: new Date(),
-      },
-      {
-        id: uuidv4(),
-        email: 'jane@example.com',
-        name: 'Jane Smith',
-        createdAt: new Date(),
-      },
-    ];
+  constructor(
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+  ) {}
+
+  async onModuleInit() {
+    const count = await this.usersRepository.count();
+    if (count === 0) {
+      await this.usersRepository.save([
+        { email: 'john@example.com', name: 'John Doe' },
+        { email: 'jane@example.com', name: 'Jane Smith' },
+      ]);
+      this.logger.log('Seeded default users');
+    }
   }
 
-  findAll(): User[] {
-    this.logger.log(`Finding all users. Total: ${this.users.length}`);
-    return this.users;
+  findAll(): Promise<User[]> {
+    this.logger.log('Finding all users');
+    return this.usersRepository.find();
   }
 
-  findOne(id: string): User {
+  async findOne(id: string): Promise<User> {
     this.logger.log(`Finding user with id: ${id}`);
-    const user = this.users.find((u) => u.id === id);
+    const user = await this.usersRepository.findOne({ where: { id } });
     if (!user) {
       this.logger.warn(`User with id ${id} not found`);
       throw new NotFoundException(`User with id ${id} not found`);
@@ -41,29 +45,34 @@ export class UsersService {
     return user;
   }
 
-  findByEmail(email: string): User | undefined {
+  findByEmail(email: string): Promise<User | null> {
     this.logger.log(`Finding user with email: ${email}`);
-    return this.users.find((u) => u.email === email);
+    return this.usersRepository.findOne({ where: { email } });
   }
 
-  create(createUserDto: CreateUserDto): User {
+  async create(createUserDto: CreateUserDto): Promise<User> {
     this.logger.log(`Creating new user: ${createUserDto.email}`);
-
-    // Check if email already exists
-    const existingUser = this.findByEmail(createUserDto.email);
+    const existingUser = await this.findByEmail(createUserDto.email);
     if (existingUser) {
       this.logger.warn(`User with email ${createUserDto.email} already exists`);
       throw new ConflictException(`User with email ${createUserDto.email} already exists`);
     }
+    const user = this.usersRepository.create(createUserDto);
+    const saved = await this.usersRepository.save(user);
+    this.logger.log(`User created successfully with id: ${saved.id}`);
+    return saved;
+  }
 
-    const newUser: User = {
-      id: uuidv4(),
-      ...createUserDto,
-      createdAt: new Date(),
-    };
-
-    this.users.push(newUser);
-    this.logger.log(`User created successfully with id: ${newUser.id}`);
-    return newUser;
+  async findOrCreateByEmail(email: string, name?: string): Promise<User> {
+    let user = await this.findByEmail(email);
+    if (user) {
+      return user;
+    }
+    this.logger.log(`User with email ${email} not found. Creating new user.`);
+    user = this.usersRepository.create({
+      email,
+      name: name || email.split('@')[0],
+    });
+    return this.usersRepository.save(user);
   }
 }

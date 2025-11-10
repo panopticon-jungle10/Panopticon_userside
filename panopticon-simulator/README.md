@@ -139,3 +139,30 @@ panopticon-simulator/
 ├── deploy-tenant-a.sh # Tenant A 배포
 ├── deploy-tenant-b.sh # Tenant B 배포
 └── cleanup.sh # 전체 삭제
+
+## 로컬 브라우저에서 클러스터 앱 접속하기 (Ingress)
+
+1. **Ingress Controller 설치**  
+   kind 기준 예시:
+   ```bash
+   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+   ```
+
+2. **Ingress 리소스 적용**  
+   `frontend`/`backend`를 외부 호스트로 노출:
+   ```bash
+   kubectl apply -f k8s/tenant-a/ingress.yaml
+   ```
+
+3. **hosts 파일에 도메인 매핑**  
+   Ingress Controller가 노출되는 노드 IP(로컬 kind면 `127.0.0.1`)에 아래 호스트를 추가한다.
+   ```
+   127.0.0.1 frontend.panopticon.local
+   127.0.0.1 backend.panopticon.local
+   ```
+
+4. **브라우저 접속**  
+   - 프론트엔드: `http://frontend.panopticon.local`
+   - 백엔드 API: `http://backend.panopticon.local/users`
+
+이렇게 하면 프런트는 쿠버네티스 안에서 돌아가도 브라우저가 직접 접근해 버튼 클릭·로그인 등의 사용자 행동을 시험할 수 있다.
