@@ -7,7 +7,8 @@ metadata:
     app: backend
     tenant: user-a
 spec:
-  replicas: 2
+  replicas: 1  # For testing - set to 2 for production HA
+  # replicas: 2  # Production: High availability with 2 replicas
   selector:
     matchLabels:
       app: backend

@@ -1,9 +1,12 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import fs from "fs";
+import path from "path";
 import * as $root from "@opentelemetry/otlp-transformer/build/src/generated/root";
 
 const app = express();
 const PORT = process.env.PORT || 4318;
+const LOG_FILE_PATH = path.resolve(__dirname, "../../logs.log");
 
 // Middleware
 app.use(cors());
@@ -120,14 +123,24 @@ app.post("/v1/metrics", (req: Request, res: Response) => {
 
 // Logs endpoint (for OTLP logs)
 app.post("/v1/logs", (req: Request, res: Response) => {
-  console.log("[LOGS-OTLP] Received OTLP logs data");
-  console.log("Content-Type:", req.headers["content-type"]);
-  console.log("Logs payload size:", JSON.stringify(req.body).length, "bytes");
+  console.log(
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  );
+  console.log("[RAW LOG DATA] Fluent-bit logs:");
 
-  // Log sample of logs data
+  // Check if it's OTLP format
   if (req.body && req.body.resourceLogs) {
+    console.log("[LOGS-OTLP] Received OTLP logs data");
     console.log("Number of resource logs:", req.body.resourceLogs.length);
+  } else {
+    // Fluent-bit JSON format
+    console.log("[LOGS-JSON] Received Fluent-bit logs");
+    console.log(JSON.stringify(req.body, null, 2));
   }
+
+  console.log(
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  );
 
   res.status(200).json({ status: "success" });
 });
@@ -398,46 +411,50 @@ const isValidRecord = (record: FluentBitRecord) =>
 
 // Fluent-bit endpoint (HTTP output plugin)
 app.post("/fluent-bit/logs", (req: Request, res: Response) => {
-  if (!Array.isArray(req.body)) {
-    console.warn("[FLUENT-BIT] Payload must be an array. Ignoring request.");
-    res
-      .status(400)
-      .json({ status: "error", message: "Payload must be an array" });
-    return;
-  }
+  // console.log(req.body);
 
-  const sanitized = req.body
-    .filter((entry) => entry && typeof entry === "object")
-    .map((entry: FluentBitRecord) => sanitizeRecord(entry));
+  // if (!Array.isArray(req.body)) {
+  //   console.warn("[FLUENT-BIT] Payload must be an array. Ignoring request.");
+  //   res
+  //     .status(400)
+  //     .json({ status: "error", message: "Payload must be an array" });
+  //   return;
+  // }
 
-  const validRecords = sanitized.filter(isValidRecord);
-  const appRecords = validRecords.filter((record) => record.type === "log");
-  const discarded = sanitized.length - validRecords.length;
+  // const sanitized = req.body
+  //   .filter((entry) => entry && typeof entry === "object")
+  //   .map((entry: FluentBitRecord) => sanitizeRecord(entry));
 
-  if (appRecords.length > 0) {
-    console.log("━".repeat(70));
-    console.log(
-      `[FLUENT-BIT] Total ${appRecords.length} log entries (discarded ${discarded})`
-    );
-    appRecords.forEach((record) =>
-      console.log(JSON.stringify(record, null, 2))
-    );
-    console.log("━".repeat(70));
-  } else {
-    console.log("[FLUENT-BIT] No valid log entries in payload.");
-  }
+  // const validRecords = sanitized.filter(isValidRecord);
+  // const appRecords = validRecords.filter((record) => record.type === "log");
+  // const discarded = sanitized.length - validRecords.length;
+
+  // if (appRecords.length > 0) {
+  //   console.log("━".repeat(70));
+  //   console.log(
+  //     `[FLUENT-BIT] Total ${appRecords.length} log entries (discarded ${discarded})`
+  //   );
+  //   appRecords.forEach((record) =>
+  //     console.log(JSON.stringify(record, null, 2))
+  //   );
+  //   console.log("━".repeat(70));
+  // } else {
+  //   console.log("[FLUENT-BIT] No valid log entries in payload.");
+  // }
 
   res.status(200).json({
     status: "success",
-    processed: validRecords.length,
-    discarded,
   });
 });
 
 // Generic data endpoint
 app.post("/ingest", (req: Request, res: Response) => {
-  console.log("[INGEST] Received generic data");
-  console.log("Data:", JSON.stringify(req.body, null, 2));
+  const payload = JSON.stringify(req.body);
+  fs.appendFile(LOG_FILE_PATH, payload + "\n", (err) => {
+    if (err) {
+      console.error("[INGEST] Failed to write payload to logs.log:", err);
+    }
+  });
 
   res.status(200).json({
     status: "success",
@@ -457,16 +474,4 @@ app.all("*", (req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log("=".repeat(50));
-  console.log(`= Ingest Server running on port ${PORT}`);
-  console.log("=".repeat(50));
-  console.log("Available endpoints:");
-  console.log("  - GET  /health                (Health check)");
-  console.log("  - POST /v1/traces             (OTLP traces)");
-  console.log("  - POST /v1/metrics            (OTLP metrics)");
-  console.log("  - POST /v1/logs               (OTLP logs)");
-  console.log("  - POST /fluent-bit/logs       (Fluent-bit logs)");
-  console.log("  - POST /ingest                (Generic data)");
-  console.log("=".repeat(50));
-});
+app.listen(PORT, () => {});

@@ -66,6 +66,9 @@ data:
       batch:
         timeout: 30s
         send_batch_size: 512
+      batch/traces:
+        timeout: 5s  # For testing - fast trace delivery
+        send_batch_size: 512
       resource:
         attributes:
           - action: upsert
@@ -98,7 +101,7 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, resource, batch]
+          processors: [memory_limiter, resource, batch/traces]
           exporters: [otlphttp, logging]
         metrics:
           receivers: [otlp, hostmetrics]

@@ -53,6 +53,11 @@ const sdk = new NodeSDK({
       '@opentelemetry/instrumentation-nestjs-core': {
         enabled: true,
       },
+      // Disable Node.js runtime metrics (eventloop, GC, heap, etc.)
+      // These metrics send data periodically even without user activity
+      '@opentelemetry/instrumentation-runtime-node': {
+        enabled: false,  // Disabled: eventloop.utilization, gc.duration, v8js.memory.heap, etc.
+      },
     }),
   ],
 });
