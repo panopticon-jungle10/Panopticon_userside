@@ -22,7 +22,8 @@ data:
 
       # Host metrics receiver - collects CPU, memory, disk, network, etc.
       hostmetrics:
-        collection_interval: 10s
+        root_path: /hostfs
+        collection_interval: 60s
         scrapers:
           cpu:
             metrics:
@@ -36,30 +37,26 @@ data:
             metrics:
               system.disk.io:
                 enabled: true
-          network:
-            metrics:
-              system.network.io:
-                enabled: true
-          filesystem:
-            metrics:
-              system.filesystem.utilization:
-                enabled: true
-          load:
-            metrics:
-              system.cpu.load_average.1m:
-                enabled: true
-              system.cpu.load_average.5m:
-                enabled: true
-              system.cpu.load_average.15m:
-                enabled: true
-          paging:
-            metrics:
-              system.paging.operations:
-                enabled: true
-          processes:
-            metrics:
-              system.processes.count:
-                enabled: true
+          # network:
+          #   metrics:
+          #     system.network.io:
+          #       enabled: true
+          # load:
+          #   metrics:
+          #     system.cpu.load_average.1m:
+          #       enabled: true
+          #     system.cpu.load_average.5m:
+          #       enabled: true
+          #     system.cpu.load_average.15m:
+          #       enabled: true
+          # paging:
+          #   metrics:
+          #     system.paging.operations:
+          #       enabled: true
+          # processes:
+          #   metrics:
+          #     system.processes.count:
+          #       enabled: true
 
     processors:
       memory_limiter:
@@ -67,7 +64,7 @@ data:
         limit_mib: 512
         spike_limit_mib: 128
       batch:
-        timeout: 5s
+        timeout: 30s
         send_batch_size: 512
       resource:
         attributes:
@@ -82,9 +79,13 @@ data:
       logging:
         loglevel: info
 
-      # Export to ingest-server (JSON format)
+      # Export to ingest server for testing
       otlphttp:
-        endpoint: http://ingest-server.default.svc.cluster.local:4318
+        endpoint: http://ingest-server.tenant-a.svc.cluster.local:4318
+        # ALB endpoint (production)
+        # endpoint: ""
+        # traces_endpoint: http://panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com/producer/logs
+        # metrics_endpoint: http://panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com/producer/logs
         timeout: 10s
         tls:
           insecure: true

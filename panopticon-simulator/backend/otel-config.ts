@@ -26,7 +26,7 @@ const metricExporter = new OTLPMetricExporter({
 // Create metric reader
 const metricReader = new PeriodicExportingMetricReader({
   exporter: metricExporter,
-  exportIntervalMillis: 10000, // Export every 10 seconds
+  exportIntervalMillis: 30000, // Export every 30 seconds
 });
 
 // Initialize OpenTelemetry SDK
@@ -39,6 +39,13 @@ const sdk = new NodeSDK({
       // Enable all auto-instrumentations
       '@opentelemetry/instrumentation-http': {
         enabled: true,
+        ignoreIncomingRequestHook: (req) => {
+          // Ignore health check, background tasks, system checks
+          const url = req.url || '';
+          return url.includes('/health') ||
+                 url.includes('/metrics') ||
+                 req.headers['user-agent']?.includes('kube-probe');
+        },
       },
       '@opentelemetry/instrumentation-express': {
         enabled: true,
