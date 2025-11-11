@@ -26,7 +26,7 @@ const metricExporter = new OTLPMetricExporter({
 // Create metric reader
 const metricReader = new PeriodicExportingMetricReader({
   exporter: metricExporter,
-  exportIntervalMillis: 10000, // Export every 10 seconds
+  exportIntervalMillis: 30000, // Export every 30 seconds
 });
 
 // Initialize OpenTelemetry SDK
@@ -39,12 +39,24 @@ const sdk = new NodeSDK({
       // Enable all auto-instrumentations
       '@opentelemetry/instrumentation-http': {
         enabled: true,
+        ignoreIncomingRequestHook: (req) => {
+          // Ignore health check, background tasks, system checks
+          const url = req.url || '';
+          return url.includes('/health') ||
+                 url.includes('/metrics') ||
+                 req.headers['user-agent']?.includes('kube-probe');
+        },
       },
       '@opentelemetry/instrumentation-express': {
         enabled: true,
       },
       '@opentelemetry/instrumentation-nestjs-core': {
         enabled: true,
+      },
+      // Disable Node.js runtime metrics (eventloop, GC, heap, etc.)
+      // These metrics send data periodically even without user activity
+      '@opentelemetry/instrumentation-runtime-node': {
+        enabled: false,  // Disabled: eventloop.utilization, gc.duration, v8js.memory.heap, etc.
       },
     }),
   ],

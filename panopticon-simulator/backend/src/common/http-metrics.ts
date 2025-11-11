@@ -33,6 +33,11 @@ const buildLabels = (meta: HttpMetricMeta) => {
 };
 
 export const recordHttpMetrics = (meta: HttpMetricMeta) => {
+  // Ignore health checks and system endpoints
+  if (meta.path.includes('/health') || meta.path.includes('/metrics')) {
+    return;
+  }
+
   const labels = buildLabels(meta);
   requestCounter.add(1, labels);
   durationHistogram.record(meta.durationMs, labels);
