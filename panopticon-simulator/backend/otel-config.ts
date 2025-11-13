@@ -3,17 +3,10 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
-import {
-  SEMRESATTRS_SERVICE_NAME,
-  SEMRESATTRS_SERVICE_VERSION,
-} from "@opentelemetry/semantic-conventions";
 
-// OTLP Exporter endpoint (ingest-server)
+// OTLP Exporter endpoint
 const OTLP_ENDPOINT =
   process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4318";
-
-console.log("[OTEL] Initializing OpenTelemetry...");
-console.log(`[OTEL] OTLP Endpoint: ${OTLP_ENDPOINT}`);
 
 // Configure trace exporter
 const traceExporter = new OTLPTraceExporter({
@@ -49,6 +42,7 @@ const sdk = new NodeSDK({
           return (
             url.includes("/health") ||
             url.includes("/metrics") ||
+            // Options for kubernetes
             req.headers["user-agent"]?.includes("kube-probe")
           );
         },
