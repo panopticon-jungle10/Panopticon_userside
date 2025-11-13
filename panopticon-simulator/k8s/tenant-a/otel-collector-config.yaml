@@ -95,11 +95,9 @@ data:
       logging:
         loglevel: info
 
-      # Export to ALB endpoint (production)
+      # Export to local ingest-server for debugging
       otlphttp:
-        endpoint: http://panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com
-        traces_endpoint: http://panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com/producer/metrics
-        metrics_endpoint: http://panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com/producer/metrics
+        endpoint: http://ingest-server.tenant-a.svc.cluster.local:4318
         timeout: 10s
         tls:
           insecure: true

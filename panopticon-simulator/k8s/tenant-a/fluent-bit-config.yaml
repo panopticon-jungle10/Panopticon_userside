@@ -40,10 +40,10 @@ data:
     [OUTPUT]
         Name  http
         Match *
-        # ALB endpoint (production)
-        Host  panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com
-        Port  80
-        URI   /producer/logs
+        # Local ingest-server for debugging
+        Host  ingest-server.tenant-a.svc.cluster.local
+        Port  4318
+        URI   /v1/logs
         Format json
         Json_date_key timestamp
         Json_date_format iso8601
