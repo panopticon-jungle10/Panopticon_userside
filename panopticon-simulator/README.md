@@ -19,7 +19,6 @@
 
 4. OTel Collector (DaemonSet)
    App traces & metrics 수집
-   Host metrics 수집 (hostmetrics receiver)
    Panopticon Gateway로 전송
 
 5. Fluent Bit (DaemonSet)
