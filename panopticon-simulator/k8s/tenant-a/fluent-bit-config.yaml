@@ -40,11 +40,7 @@ data:
     [OUTPUT]
         Name  http
         Match *
-        # ALB endpoint (production)
-        # Host  panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com
-        # Port  80
-        # URI   /producer/logs
-        # Ingest server endpoint (testing)
+        # Local ingest-server for debugging
         Host  ingest-server.tenant-a.svc.cluster.local
         Port  4318
         URI   /v1/logs

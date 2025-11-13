@@ -111,18 +111,6 @@ panopticon-simulator/
 │ │ └── fluent-bit-config.yaml
 │ │ └── fluent-bit-daemonset.yaml
 │ │
-│ ├── tenant-b/ # User B (Tenant B) 환경
-│ │ ├── configmap.yaml
-│ │ ├── frontend-deployment.yaml
-│ │ ├── frontend-service.yaml
-│ │ ├── backend-deployment.yaml
-│ │ ├── backend-service.yaml
-│ │ ├── load-generator-deployment.yaml
-│ │ ├── otel-collector-config.yaml
-│ │ ├── otel-collector-daemonset.yaml
-│ │ └── fluent-bit-config.yaml
-│ │ └── fluent-bit-daemonset.yaml
-│ │
 │ └── deploy.sh # 배포 스크립트
 │
 ├── otel-config/ # OTel Collector 설정 템플릿
@@ -137,7 +125,6 @@ panopticon-simulator/
 └── scripts/
 ├── build-all.sh # 전체 이미지 빌드
 ├── deploy-tenant-a.sh # Tenant A 배포
-├── deploy-tenant-b.sh # Tenant B 배포
 └── cleanup.sh # 전체 삭제
 
 ## 로컬 브라우저에서 클러스터 앱 접속하기 (Ingress)

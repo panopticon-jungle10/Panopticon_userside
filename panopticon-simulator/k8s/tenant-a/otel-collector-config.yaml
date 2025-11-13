@@ -63,6 +63,19 @@ data:
         check_interval: 2s
         limit_mib: 512
         spike_limit_mib: 128
+      filter/drop_db_spans:
+        traces:
+          span:
+            - 'attributes["db.system"] == "postgresql"'
+            - 'IsMatch(name, "^pg\\.")'
+      filter/drop_middleware_spans:
+        traces:
+          span:
+            - 'IsMatch(name, "^middleware")'
+            - 'IsMatch(name, "^request handler")'
+            - 'IsMatch(name, "^dns\\.")'
+            - 'IsMatch(name, "^tcp\\.")'
+            - 'IsMatch(name, "^OPTIONS")'
       batch:
         timeout: 30s
         send_batch_size: 512
@@ -82,13 +95,9 @@ data:
       logging:
         loglevel: info
 
-      # Export to ingest server for testing
+      # Export to local ingest-server for debugging
       otlphttp:
         endpoint: http://ingest-server.tenant-a.svc.cluster.local:4318
-        # ALB endpoint (production)
-        # endpoint: ""
-        # traces_endpoint: http://panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com/producer/logs
-        # metrics_endpoint: http://panopticon-alb-2099783513.ap-northeast-2.elb.amazonaws.com/producer/logs
         timeout: 10s
         tls:
           insecure: true
@@ -101,7 +110,7 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, resource, batch/traces]
+          processors: [memory_limiter, resource, filter/drop_db_spans, filter/drop_middleware_spans, batch/traces]
           exporters: [otlphttp, logging]
         metrics:
           receivers: [otlp, hostmetrics]
