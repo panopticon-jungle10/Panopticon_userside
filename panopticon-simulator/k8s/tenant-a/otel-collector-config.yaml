@@ -20,68 +20,16 @@ data:
           http:
             endpoint: 0.0.0.0:4318
 
-      # Host metrics receiver - collects CPU, memory, disk, network, etc.
-      hostmetrics:
-        root_path: /hostfs
-        collection_interval: 60s
-        scrapers:
-          cpu:
-            metrics:
-              system.cpu.utilization:
-                enabled: true
-          memory:
-            metrics:
-              system.memory.utilization:
-                enabled: true
-          disk:
-            metrics:
-              system.disk.io:
-                enabled: true
-          # network:
-          #   metrics:
-          #     system.network.io:
-          #       enabled: true
-          # load:
-          #   metrics:
-          #     system.cpu.load_average.1m:
-          #       enabled: true
-          #     system.cpu.load_average.5m:
-          #       enabled: true
-          #     system.cpu.load_average.15m:
-          #       enabled: true
-          # paging:
-          #   metrics:
-          #     system.paging.operations:
-          #       enabled: true
-          # processes:
-          #   metrics:
-          #     system.processes.count:
-          #       enabled: true
-
     processors:
       memory_limiter:
         check_interval: 2s
         limit_mib: 512
         spike_limit_mib: 128
-      filter/drop_db_spans:
-        traces:
-          span:
-            - 'attributes["db.system"] == "postgresql"'
-            - 'IsMatch(name, "^pg\\.")'
-      filter/drop_middleware_spans:
-        traces:
-          span:
-            - 'IsMatch(name, "^middleware")'
-            - 'IsMatch(name, "^request handler")'
-            - 'IsMatch(name, "^dns\\.")'
-            - 'IsMatch(name, "^tcp\\.")'
-            - 'IsMatch(name, "^OPTIONS")'
-      batch:
-        timeout: 30s
-        send_batch_size: 512
+
       batch/traces:
-        timeout: 5s  # For testing - fast trace delivery
+        timeout: 5s
         send_batch_size: 512
+
       resource:
         attributes:
           - action: upsert
@@ -110,9 +58,5 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, resource, filter/drop_db_spans, filter/drop_middleware_spans, batch/traces]
-          exporters: [otlphttp, logging]
-        metrics:
-          receivers: [otlp, hostmetrics]
-          processors: [memory_limiter, resource, batch]
+          processors: [memory_limiter, resource, batch/traces]
           exporters: [otlphttp, logging]

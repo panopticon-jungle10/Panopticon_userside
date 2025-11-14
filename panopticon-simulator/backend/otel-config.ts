@@ -1,3 +1,5 @@
+// sdk.ts 또는 otel.ts
+
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
@@ -33,7 +35,7 @@ const sdk = new NodeSDK({
   metricReader,
   instrumentations: [
     getNodeAutoInstrumentations({
-      // Enable all auto-instrumentations
+      // HTTP 요청 계측 (건강 체크 제외)
       "@opentelemetry/instrumentation-http": {
         enabled: true,
         ignoreIncomingRequestHook: (req) => {
@@ -47,16 +49,16 @@ const sdk = new NodeSDK({
           );
         },
       },
+      // Express 및 NestJS 프레임워크 계측
       "@opentelemetry/instrumentation-express": {
         enabled: true,
       },
       "@opentelemetry/instrumentation-nestjs-core": {
         enabled: true,
       },
-      // Disable Node.js runtime metrics (eventloop, GC, heap, etc.)
-      // These metrics send data periodically even without user activity
+      // Node.js 런타임 메트릭 비활성화
       "@opentelemetry/instrumentation-runtime-node": {
-        enabled: false, // Disabled: eventloop.utilization, gc.duration, v8js.memory.heap, etc.
+        enabled: false,
       },
     }),
   ],
