@@ -19,7 +19,6 @@
 
 4. OTel Collector (DaemonSet)
    App traces & metrics 수집
-   Host metrics 수집 (hostmetrics receiver)
    Panopticon Gateway로 전송
 
 5. Fluent Bit (DaemonSet)
@@ -81,6 +80,15 @@ panopticon-simulator/
 │ │ └── filters/
 │ │ └── http-exception.filter.ts
 │ └── otel-config.ts # OTel SDK 설정
+│
+├── python-backend/ # FastAPI 기반 대체 백엔드
+│ ├── app/
+│ │ ├── main.py # FastAPI 진입점 및 OTEL 설정
+│ │ ├── models.py # SQLAlchemy 모델 정의
+│ │ ├── routers/ # products, cart, orders, users 라우터
+│ │ └── telemetry.py # Python OTel Exporter 설정
+│ ├── requirements.txt
+│ └── Dockerfile
 │
 ├── load-generator/ # 자동 트래픽 생성기
 │ ├── Dockerfile
