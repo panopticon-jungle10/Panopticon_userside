@@ -45,10 +45,8 @@ data:
 
       # Export to local ingest-server for debugging
       otlphttp:
-        endpoint: http://ingest-server.tenant-a.svc.cluster.local:4318
+        endpoint: https://api.jungle-panopticon.cloud/producer
         timeout: 10s
-        tls:
-          insecure: true
 
     service:
       extensions: [health_check, pprof, zpages]

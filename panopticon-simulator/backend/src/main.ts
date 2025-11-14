@@ -5,7 +5,6 @@ import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { StructuredLogger } from './common/structured-logger.service';
-import { recordHttpMetrics } from './common/http-metrics';
 
 async function bootstrap() {
   const structuredLogger = new StructuredLogger();
@@ -33,12 +32,6 @@ async function bootstrap() {
         status: res.statusCode,
         durationMs,
         ip,
-      });
-      recordHttpMetrics({
-        method,
-        path: originalUrl,
-        status: res.statusCode,
-        durationMs,
       });
     });
 
