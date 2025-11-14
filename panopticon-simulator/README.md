@@ -81,6 +81,15 @@ panopticon-simulator/
 │ │ └── http-exception.filter.ts
 │ └── otel-config.ts # OTel SDK 설정
 │
+├── python-backend/ # FastAPI 기반 대체 백엔드
+│ ├── app/
+│ │ ├── main.py # FastAPI 진입점 및 OTEL 설정
+│ │ ├── models.py # SQLAlchemy 모델 정의
+│ │ ├── routers/ # products, cart, orders, users 라우터
+│ │ └── telemetry.py # Python OTel Exporter 설정
+│ ├── requirements.txt
+│ └── Dockerfile
+│
 ├── load-generator/ # 자동 트래픽 생성기
 │ ├── Dockerfile
 │ ├── package.json
