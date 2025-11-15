@@ -86,6 +86,21 @@ export class CartService {
 
   async addItem(addToCartDto: AddToCartDto): Promise<CartResponse> {
     this.logger.log(`Adding item to cart for user: ${addToCartDto.userId}`);
+
+    // ========== DEMO: 의도적으로 에러 발생시키기 위한 코드 ==========
+    // 내일 데모용으로 장바구니 담기 실패 시나리오 시연
+    const errorDetails = JSON.stringify({
+      userId: addToCartDto.userId,
+      productId: addToCartDto.productId,
+      quantity: addToCartDto.quantity,
+      errorType: 'DATABASE_CONNECTION_ERROR',
+      timestamp: new Date().toISOString()
+    });
+    this.logger.error(`장바구니 담기 실패: 데이터베이스 연결 오류 - ${errorDetails}`);
+    throw new BadRequestException('장바구니에 상품을 담는데 실패했습니다. 잠시 후 다시 시도해주세요.');
+    // ========== DEMO 코드 끝 ==========
+
+    /* ========== 원래 로직 (데모 후 복구용으로 주석처리) ==========
     const product = await this.productsService.findOne(addToCartDto.productId);
     if (product.stock < addToCartDto.quantity) {
       throw new BadRequestException(`Insufficient stock for product ${product.name}`);
@@ -115,6 +130,7 @@ export class CartService {
     await this.cartsRepository.save(cart);
     const fresh = await this.getOrCreateCartEntity(addToCartDto.userId);
     return this.mapCart(fresh);
+    ========== 원래 로직 끝 ========== */
   }
 
   async updateItemQuantity(
