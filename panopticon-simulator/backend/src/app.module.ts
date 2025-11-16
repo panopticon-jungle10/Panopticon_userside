@@ -7,6 +7,7 @@ import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
 import { UsersModule } from './users/users.module';
 import { CartModule } from './cart/cart.module';
+import { InstallModule } from './install/install.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { CartModule } from './cart/cart.module';
     OrdersModule,
     UsersModule,
     CartModule,
+    InstallModule,
   ],
   controllers: [AppController],
   providers: [AppService],

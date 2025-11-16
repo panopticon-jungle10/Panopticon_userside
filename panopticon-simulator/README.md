@@ -69,3 +69,16 @@ panopticon-simulator/
 
 - **Kubernetes**: `infra/k8s/README.md`를 참고해 namespace → statefulset/deployment → ingress 순으로 적용하면 됩니다.  
 - **Docker Compose**: `infra/docker` 폴더의 안내에 따라 `.env`를 준비하고 `docker compose up -d`로 백엔드와 Postgres, 프론트엔드를 손쉽게 띄울 수 있습니다.
+
+## Installer UI (로컬)
+
+`installer-ui/` 폴더에는 Vite + React 기반의 간단한 SPA가 들어 있습니다.  
+이 UI에서 서비스명/엔드포인트를 입력하면 `/api/install/generate` API를 호출해
+템플릿(tracing.js, .env, docker-compose snippet)을 코드 블록으로 확인할 수 있습니다.
+
+```bash
+cd installer-ui
+npm install
+npm run dev
+```
+
