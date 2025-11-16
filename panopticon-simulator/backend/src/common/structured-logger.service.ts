@@ -1,5 +1,4 @@
 import { ConsoleLogger, Injectable } from "@nestjs/common";
-import { context, trace } from "@opentelemetry/api";
 
 type LogLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
 
@@ -28,9 +27,6 @@ export class StructuredLogger extends ConsoleLogger {
     message: string,
     extra?: Record<string, unknown>
   ) {
-    const span = trace.getSpan(context.active());
-    const spanContext = span?.spanContext();
-
     return {
       type: "log",
       timestamp: new Date().toISOString(),
@@ -38,8 +34,8 @@ export class StructuredLogger extends ConsoleLogger {
       environment: this.environment,
       level,
       message,
-      trace_id: spanContext?.traceId ?? null,
-      span_id: spanContext?.spanId ?? null,
+      trace_id: null,
+      span_id: null,
       ...(extra ?? {}),
     };
   }

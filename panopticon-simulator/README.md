@@ -1,139 +1,42 @@
-## 시뮬레이터 구성 요소 설명
+## 시뮬레이터 구성 요소
 
-1. Frontend (Next.js)
+1. **Frontend (Next.js)**  
+   - 홈쇼핑 UI, 장바구니/결제 플로우  
+   - Backend API 호출만 포함 (관측 도구 없음)
 
-- 홈쇼핑 UI
-- OTel SDK로 브라우저 traces 수집
-- Backend API 호출
+2. **Backend (NestJS)**  
+   - 상품/주문/장바구니/사용자 API 제공  
+   - Structured Logger로 JSON 로그 출력
 
-2. Backend (NestJS)
-   REST API (상품, 주문, 장바구니)
-   OTel SDK로 traces & metrics 수집
-   Winston/Pino로 structured logging
-   의도적 에러/지연 시뮬레이션
+3. **Python Backend (FastAPI)**  
+   - 동일 스키마를 사용하는 FastAPI 버전  
+   - 필요 시 Nest 대신 교체하여 사용할 수 있음
 
-3. Load Generator
-   자동으로 API 호출 (사용자 시뮬레이션)
-   다양한 시나리오 (정상, 에러, 느린 요청)
-   시연 시간 15분간 계속 실행
+4. **Load Generator**  
+   - Locust 기반 트래픽 시뮬레이터  
+   - 로그인, 상품 탐색, 주문 작성 등 다양한 시나리오 실행
 
-4. OTel Collector (DaemonSet)
-   App traces & metrics 수집
-   Panopticon Gateway로 전송
+5. **배포 템플릿**  
+   - `infra/k8s/`: Kubernetes 클러스터에 앱만 올릴 수 있는 클린 매니페스트  
+   - `infra/docker/`: Docker Compose 로컬 실행 환경
 
-5. Fluent Bit (DaemonSet)
-   컨테이너 로그 수집
+> ⚠️ 이 레포는 이제 관측/수집기 컴포넌트를 포함하지 않습니다.  
+> 추후 Panopticon AI 설치 가이드를 따라 새 OTEL/Agent 구성을 붙이면 됩니다.
 
-## 시뮬레이터 폴더 구조
+## 주요 폴더
 
+```
 panopticon-simulator/
-├── README.md
-├── docker-compose.yml # 로컬 개발용 (선택)
-│
-├── frontend/ # Next.js 홈쇼핑 프론트
-│ ├── Dockerfile
-│ ├── package.json
-│ ├── next.config.js
-│ ├── instrumentation.ts # Next.js OTel 설정
-│ ├── src/
-│ │ ├── app/
-│ │ │ ├── layout.tsx
-│ │ │ ├── page.tsx # 홈쇼핑 메인
-│ │ │ ├── products/
-│ │ │ │ └── page.tsx # 상품 목록
-│ │ │ ├── cart/
-│ │ │ │ └── page.tsx # 장바구니
-│ │ │ └── checkout/
-│ │ │ └── page.tsx # 결제
-│ │ ├── components/
-│ │ │ ├── ProductCard.tsx
-│ │ │ ├── Cart.tsx
-│ │ │ └── Header.tsx
-│ │ └── lib/
-│ │ ├── api.ts # Backend API 호출
-│ │ └── otel.ts # OTel 설정
-│ └── public/
-│
-├── backend/ # NestJS API 서버
-│ ├── Dockerfile
-│ ├── package.json
-│ ├── nest-cli.json
-│ ├── tsconfig.json
-│ ├── src/
-│ │ ├── main.ts # OTel 초기화
-│ │ ├── app.module.ts
-│ │ ├── products/
-│ │ │ ├── products.controller.ts
-│ │ │ ├── products.service.ts
-│ │ │ └── products.module.ts
-│ │ ├── orders/
-│ │ │ ├── orders.controller.ts
-│ │ │ ├── orders.service.ts
-│ │ │ └── orders.module.ts
-│ │ ├── cart/
-│ │ │ ├── cart.controller.ts
-│ │ │ ├── cart.service.ts
-│ │ │ └── cart.module.ts
-│ │ └── common/
-│ │ ├── interceptors/
-│ │ │ └── logging.interceptor.ts # 로그 인터셉터
-│ │ └── filters/
-│ │ └── http-exception.filter.ts
-│ └── otel-config.ts # OTel SDK 설정
-│
-├── python-backend/ # FastAPI 기반 대체 백엔드
-│ ├── app/
-│ │ ├── main.py # FastAPI 진입점 및 OTEL 설정
-│ │ ├── models.py # SQLAlchemy 모델 정의
-│ │ ├── routers/ # products, cart, orders, users 라우터
-│ │ └── telemetry.py # Python OTel Exporter 설정
-│ ├── requirements.txt
-│ └── Dockerfile
-│
-├── load-generator/ # 자동 트래픽 생성기
-│ ├── Dockerfile
-│ ├── package.json
-│ ├── src/
-│ │ ├── index.ts
-│ │ ├── scenarios/
-│ │ │ ├── normal-user.ts # 일반 사용자 시나리오
-│ │ │ ├── heavy-user.ts # 파워 유저 시나리오
-│ │ │ └── error-prone.ts # 에러 발생 시나리오
-│ │ └── utils/
-│ │ └── random.ts
-│ └── config/
-│ └── scenarios.json
-│
-├── k8s/ # Kubernetes 배포 설정
-│ ├── namespace.yaml
-│ │
-│ ├── tenant-a/ # User A (Tenant A) 환경
-│ │ ├── configmap.yaml
-│ │ ├── frontend-deployment.yaml
-│ │ ├── frontend-service.yaml
-│ │ ├── backend-deployment.yaml
-│ │ ├── backend-service.yaml
-│ │ ├── load-generator-deployment.yaml
-│ │ ├── otel-collector-config.yaml
-│ │ ├── otel-collector-daemonset.yaml
-│ │ └── fluent-bit-config.yaml
-│ │ └── fluent-bit-daemonset.yaml
-│ │
-│ └── deploy.sh # 배포 스크립트
-│
-├── otel-config/ # OTel Collector 설정 템플릿
-│ ├── collector-config.yaml
-│ └── README.md
-│
-├── fluent-bit-config/ # Fluent Bit 설정 템플릿
-│ ├── fluent-bit.conf
-│ ├── parsers.conf
-│ └── README.md
-│
-└── scripts/
-├── build-all.sh # 전체 이미지 빌드
-├── deploy-tenant-a.sh # Tenant A 배포
-└── cleanup.sh # 전체 삭제
+├── backend/             # NestJS API 서버
+├── frontend/            # Next.js 홈쇼핑 UI
+├── python-backend/      # FastAPI 대체 백엔드
+├── load-generator/      # Locust 스クリپ트
+├── infra/k8s/           # Kubernetes 매니페스트(클린 상태)
+├── infra/docker/        # Docker Compose 환경
+└── scripts/             # 이미지 빌드/배포 스크립트
+```
+
+각 하위 디렉터리에는 자체 README 또는 주석이 포함되어 있어 빌드/실행 방법을 확인할 수 있습니다.
 
 ## 로컬 브라우저에서 클러스터 앱 접속하기 (Ingress)
 
@@ -146,7 +49,7 @@ panopticon-simulator/
 2. **Ingress 리소스 적용**  
    `frontend`/`backend`를 외부 호스트로 노출:
    ```bash
-   kubectl apply -f k8s/tenant-a/ingress.yaml
+   kubectl apply -f infra/k8s/tenant-a/ingress.yaml
    ```
 
 3. **hosts 파일에 도메인 매핑**  
@@ -161,3 +64,8 @@ panopticon-simulator/
    - 백엔드 API: `http://backend.panopticon.local/users`
 
 이렇게 하면 프런트는 쿠버네티스 안에서 돌아가도 브라우저가 직접 접근해 버튼 클릭·로그인 등의 사용자 행동을 시험할 수 있다.
+
+## 배포 옵션
+
+- **Kubernetes**: `infra/k8s/README.md`를 참고해 namespace → statefulset/deployment → ingress 순으로 적용하면 됩니다.  
+- **Docker Compose**: `infra/docker` 폴더의 안내에 따라 `.env`를 준비하고 `docker compose up -d`로 백엔드와 Postgres, 프론트엔드를 손쉽게 띄울 수 있습니다.

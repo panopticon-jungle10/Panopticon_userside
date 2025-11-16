@@ -1,6 +1,3 @@
-// IMPORTANT: Import OTEL configuration FIRST, before any other imports
-import '../otel-config';
-
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';

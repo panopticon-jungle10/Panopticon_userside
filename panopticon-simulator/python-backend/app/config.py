@@ -14,11 +14,6 @@ class Settings(BaseSettings):
     database_user: str = Field(default="panopticon", alias="DATABASE_USER")
     database_password: str = Field(default="panopticon", alias="DATABASE_PASSWORD")
 
-    otlp_endpoint: str = Field(
-        default="http://otel-collector.tenant-a.svc.cluster.local:4318",
-        alias="OTEL_EXPORTER_OTLP_ENDPOINT",
-    )
-
     seed_demo_data: bool = Field(default=True, alias="SEED_DEMO_DATA")
 
     class Config:

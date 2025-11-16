@@ -43,8 +43,6 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: password
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-collector.tenant-a.svc.cluster.local:4318"
           resources:
             requests:
               memory: "256Mi"
