@@ -4,7 +4,6 @@ import sys
 from typing import Any, Dict
 
 import structlog
-from opentelemetry import trace
 
 
 def add_standard_fields(logger: Any, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -30,15 +29,9 @@ def add_standard_fields(logger: Any, method_name: str, event_dict: Dict[str, Any
     if "event" in event_dict:
         event_dict["message"] = event_dict.pop("event")
 
-    # Add OpenTelemetry trace context if available
-    span = trace.get_current_span()
-    if span and span.is_recording():
-        span_context = span.get_span_context()
-        event_dict["trace_id"] = format(span_context.trace_id, "032x")
-        event_dict["span_id"] = format(span_context.span_id, "016x")
-    else:
-        event_dict["trace_id"] = None
-        event_dict["span_id"] = None
+    # Placeholder trace/span identifiers (not instrumented in clean state)
+    event_dict["trace_id"] = None
+    event_dict["span_id"] = None
 
     return event_dict
 

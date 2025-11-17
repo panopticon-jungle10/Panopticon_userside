@@ -1,14 +1,12 @@
 import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from opentelemetry import trace
 
 from .config import get_settings
 from .database import Base, engine, session_scope
 from .logger import configure_logging, get_logger
 from .routers import cart, orders, products, users
 from .seed import seed_data
-from .telemetry import setup_telemetry
 
 configure_logging()
 settings = get_settings()
@@ -39,7 +37,7 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     duration_ms = (time.time() - start_time) * 1000
 
-    # Log with HTTP details (trace_id/span_id added automatically by logger)
+    # Log with HTTP details
     logger.info(
         f"{request.method} {request.url.path}",
         http_method=request.method,
@@ -49,10 +47,6 @@ async def log_requests(request: Request, call_next):
     )
 
     return response
-
-
-# Setup telemetry AFTER middleware registration
-setup_telemetry(app, engine)
 
 
 @app.on_event("startup")

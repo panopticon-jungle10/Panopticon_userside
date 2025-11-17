@@ -86,6 +86,7 @@ export class CartService {
 
   async addItem(addToCartDto: AddToCartDto): Promise<CartResponse> {
     this.logger.log(`Adding item to cart for user: ${addToCartDto.userId}`);
+
     const product = await this.productsService.findOne(addToCartDto.productId);
     if (product.stock < addToCartDto.quantity) {
       throw new BadRequestException(`Insufficient stock for product ${product.name}`);
