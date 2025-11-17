@@ -1,0 +1,26 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  otlphttp:
+    endpoint: ${PANOPTICON_TRACE_ENDPOINT}
+    headers:
+      x-tenant-id: ${PANOPTICON_TENANT_ID}
+      x-api-key: ${PANOPTICON_API_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]

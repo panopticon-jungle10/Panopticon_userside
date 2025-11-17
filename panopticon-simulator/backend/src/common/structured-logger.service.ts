@@ -1,4 +1,11 @@
 import { ConsoleLogger, Injectable } from "@nestjs/common";
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  WriteStream,
+} from "fs";
+import { dirname, join } from "path";
 
 type LogLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
 
@@ -15,11 +22,30 @@ export class StructuredLogger extends ConsoleLogger {
   private readonly serviceName = process.env.SERVICE_NAME ?? "order-service";
   private readonly environment =
     process.env.RUNTIME_ENV ?? process.env.NODE_ENV ?? "local";
+  private readonly logFilePath =
+    process.env.LOG_FILE_PATH ?? join(process.cwd(), "logs", "app.log");
   private readonly defaultContext?: string;
+  private logStream: WriteStream;
 
   constructor(contextName?: string) {
     super(contextName);
     this.defaultContext = contextName;
+    this.logStream = this.createLogStream();
+  }
+
+  private createLogStream() {
+    const logDir = dirname(this.logFilePath);
+    if (!existsSync(logDir)) {
+      mkdirSync(logDir, { recursive: true });
+    }
+    const stream = createWriteStream(this.logFilePath, {
+      flags: "a",
+    });
+    stream.on("error", () => {
+      // Re-create the stream if the underlying file becomes unavailable.
+      this.logStream = this.createLogStream();
+    });
+    return stream;
   }
 
   private buildPayload(
@@ -66,7 +92,13 @@ export class StructuredLogger extends ConsoleLogger {
       return;
     }
 
-    process.stdout.write(JSON.stringify(payload) + "\n");
+    const serialized = JSON.stringify(payload) + "\n";
+    if (!this.logStream.write(serialized)) {
+      this.logStream.once("drain", () => {
+        // no-op, backpressure handled by stream
+      });
+    }
+    process.stdout.write(serialized);
   }
 
   override log(message: any, contextName?: string) {
