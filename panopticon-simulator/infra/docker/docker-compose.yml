@@ -16,7 +16,7 @@ services:
 
   app:
     build:
-      context: ../backend
+      context: ../../backend
     container_name: panopticon-app
     depends_on:
       postgres:
@@ -37,7 +37,7 @@ services:
 
   frontend:
     build:
-      context: ../frontend
+      context: ../../frontend
     container_name: panopticon-frontend
     depends_on:
       app:

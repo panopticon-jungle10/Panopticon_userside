@@ -10,9 +10,6 @@ processors:
 exporters:
   otlphttp:
     endpoint: ${PANOPTICON_TRACE_ENDPOINT}
-    headers:
-      x-tenant-id: ${PANOPTICON_TENANT_ID}
-      x-api-key: ${PANOPTICON_API_KEY}
 
 service:
   pipelines:

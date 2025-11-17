@@ -57,10 +57,10 @@ export default function ProductsPage() {
     try {
       setAddingToCart(productId)
       await addToCart(currentUser.id, productId, 1)
-      alert('장바구니에 상품이 담겼습니다!')
+      router.push('/cart')
     } catch (error) {
       console.error('Failed to add to cart:', error)
-      alert('장바구니 담기에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      alert('장바구니 담기에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setAddingToCart(null)
     }
