@@ -7,7 +7,6 @@ import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { ProductsService } from '../products/products.service';
 import { UsersService } from '../users/users.service';
-import { StructuredLogger } from '../common/structured-logger.service';
 
 type CartResponse = {
   id: string;
@@ -25,8 +24,6 @@ type CartResponse = {
 
 @Injectable()
 export class CartService {
-  private readonly logger = new StructuredLogger(CartService.name);
-
   constructor(
     @InjectRepository(Cart)
     private readonly cartsRepository: Repository<Cart>,
@@ -41,14 +38,12 @@ export class CartService {
   }
 
   private async getOrCreateCartEntity(userId: string): Promise<Cart> {
-    this.logger.log(`Finding cart for user: ${userId}`);
     let cart = await this.cartsRepository.findOne({
       where: { user: { id: userId } },
       relations: ['items', 'items.product', 'user'],
     });
 
     if (!cart) {
-      this.logger.log(`Creating new cart for user: ${userId}`);
       const user = await this.usersService.findOne(userId);
       cart = this.cartsRepository.create({
         user,
@@ -85,8 +80,6 @@ export class CartService {
   }
 
   async addItem(addToCartDto: AddToCartDto): Promise<CartResponse> {
-    this.logger.log(`Adding item to cart for user: ${addToCartDto.userId}`);
-
     const product = await this.productsService.findOne(addToCartDto.productId);
     if (product.stock < addToCartDto.quantity) {
       throw new BadRequestException(`Insufficient stock for product ${product.name}`);
@@ -99,7 +92,6 @@ export class CartService {
     if (existingItem) {
       existingItem.quantity += addToCartDto.quantity;
       await this.cartItemsRepository.save(existingItem);
-      this.logger.log(`Updated quantity for existing item in cart`);
     } else {
       const newItem = this.cartItemsRepository.create({
         cart,
@@ -109,7 +101,6 @@ export class CartService {
       });
       await this.cartItemsRepository.save(newItem);
       cart.items.push(newItem);
-      this.logger.log(`Added new item to cart: ${product.name}`);
     }
 
     cart.totalAmount = this.calculateTotalAmount(cart.items);
@@ -123,7 +114,6 @@ export class CartService {
     productId: string,
     updateCartItemDto: UpdateCartItemDto,
   ): Promise<CartResponse> {
-    this.logger.log(`Updating cart item quantity for user: ${userId}, product: ${productId}`);
     const cart = await this.getOrCreateCartEntity(userId);
     cart.items = cart.items ?? [];
     const item = cart.items.find((cartItem) => cartItem.product.id === productId);
@@ -134,7 +124,6 @@ export class CartService {
     if (updateCartItemDto.quantity <= 0) {
       await this.cartItemsRepository.remove(item);
       cart.items = cart.items.filter((cartItem) => cartItem.id !== item.id);
-      this.logger.log(`Removed item from cart`);
     } else {
       const product = await this.productsService.findOne(productId);
       if (product.stock < updateCartItemDto.quantity) {
@@ -142,7 +131,6 @@ export class CartService {
       }
       item.quantity = updateCartItemDto.quantity;
       await this.cartItemsRepository.save(item);
-      this.logger.log(`Updated item quantity to ${updateCartItemDto.quantity}`);
     }
 
     cart.totalAmount = this.calculateTotalAmount(cart.items);
@@ -152,7 +140,6 @@ export class CartService {
   }
 
   async removeItem(userId: string, productId: string): Promise<CartResponse> {
-    this.logger.log(`Removing item from cart for user: ${userId}, product: ${productId}`);
     const cart = await this.getOrCreateCartEntity(userId);
     cart.items = cart.items ?? [];
     const item = cart.items.find((cartItem) => cartItem.product.id === productId);
@@ -162,14 +149,12 @@ export class CartService {
     await this.cartItemsRepository.remove(item);
     cart.items = cart.items.filter((cartItem) => cartItem.id !== item.id);
     cart.totalAmount = this.calculateTotalAmount(cart.items);
-    this.logger.log(`Item removed from cart successfully`);
     await this.cartsRepository.save(cart);
     const fresh = await this.getOrCreateCartEntity(userId);
     return this.mapCart(fresh);
   }
 
   async clearCart(userId: string): Promise<CartResponse> {
-    this.logger.log(`Clearing cart for user: ${userId}`);
     const cart = await this.getOrCreateCartEntity(userId);
     cart.items = cart.items ?? [];
     if (cart.items.length > 0) {
@@ -177,14 +162,12 @@ export class CartService {
     }
     cart.items = [];
     cart.totalAmount = 0;
-    this.logger.log(`Cart cleared successfully`);
     await this.cartsRepository.save(cart);
     const fresh = await this.getOrCreateCartEntity(userId);
     return this.mapCart(fresh);
   }
 
   async removeCart(userId: string): Promise<void> {
-    this.logger.log(`Removing cart for user: ${userId}`);
     const cart = await this.cartsRepository.findOne({
       where: { user: { id: userId } },
       relations: ['items'],
@@ -192,7 +175,6 @@ export class CartService {
     if (cart) {
       cart.items = cart.items ?? [];
       await this.cartsRepository.remove(cart);
-      this.logger.log(`Cart removed successfully`);
     }
   }
 }

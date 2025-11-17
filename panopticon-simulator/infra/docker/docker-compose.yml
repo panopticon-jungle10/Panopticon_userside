@@ -1,4 +1,21 @@
 services:
+  fluent-bit:
+    image: fluent/fluent-bit:2.2
+    container_name: fluent-bit
+    restart: unless-stopped
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./parsers.conf:/fluent-bit/etc/parsers.conf
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    env_file:
+      - .env
+    environment:
+      PANOPTICON_LOG_HOST: ${PANOPTICON_LOG_HOST:-host.docker.internal}
+      PANOPTICON_LOG_PORT: ${PANOPTICON_LOG_PORT:-3005}
+      PANOPTICON_LOG_URI: ${PANOPTICON_LOG_URI:-/producer/v1/logs}
+
   postgres:
     image: postgres:16
     container_name: panopticon-postgres
@@ -19,16 +36,22 @@ services:
     depends_on:
       postgres:
         condition: service_started
+      fluent-bit:
+        condition: service_started
     env_file:
       - .env
     environment:
       DATABASE_HOST: postgres
       DATABASE_PORT: ${DATABASE_PORT:-5432}
-      LOG_ENDPOINT: ${LOG_ENDPOINT:-http://host.docker.internal:3005/producer/v1/logs}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://host.docker.internal:3005/producer/v1/traces}
       SERVICE_NAME: ${SERVICE_NAME:-ecommerce-backend}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: docker.backend
 
   frontend:
     build:
@@ -37,6 +60,8 @@ services:
     depends_on:
       app:
         condition: service_started
+      fluent-bit:
+        condition: service_started
     env_file:
       - .env
     environment:
@@ -44,6 +69,12 @@ services:
       NEXT_PUBLIC_OTEL_EXPORTER_OTLP_URL: ${NEXT_PUBLIC_OTEL_EXPORTER_OTLP_URL:-http://localhost:3005/producer/v1/traces}
     ports:
       - "${FRONTEND_PORT:-3001}:3000"
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: fluent-bit:24224
+        fluentd-async: "true"
+        tag: docker.frontend
 
 volumes:
   postgres-data:

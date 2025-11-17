@@ -19,8 +19,6 @@ async function bootstrap() {
     const start = process.hrtime.bigint();
     const { method, originalUrl, ip } = req;
 
-    console.log("traceparent header:", req.headers["traceparent"]);
-
     res.on("finish", () => {
       if (originalUrl === "/health") {
         return;

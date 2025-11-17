@@ -29,11 +29,9 @@ class MiddlewareFilterProcessor implements SpanProcessor {
       attributes['express.type'] === 'middleware' ||
       spanName.startsWith('middleware -')
     ) {
-      console.log(`[FILTER] Dropping middleware span: ${spanName}`)
       return // Don't export this span
     }
 
-    console.log(`[FILTER] Passing span: ${spanName}`)
     // Pass non-middleware spans to the next processor
     this.nextProcessor.onEnd(span)
   }
