@@ -1,8 +1,9 @@
-import './tracing';
-import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
-import { StructuredLogger } from './common/structured-logger.service';
+import "./tracing";
+import "./tracing";
+import { NestFactory } from "@nestjs/core";
+import { Logger, ValidationPipe } from "@nestjs/common";
+import { AppModule } from "./app.module";
+import { StructuredLogger } from "./common/structured-logger.service";
 
 async function bootstrap() {
   const structuredLogger = new StructuredLogger();
@@ -18,8 +19,10 @@ async function bootstrap() {
     const start = process.hrtime.bigint();
     const { method, originalUrl, ip } = req;
 
-    res.on('finish', () => {
-      if (originalUrl === '/health') {
+    console.log("traceparent header:", req.headers["traceparent"]);
+
+    res.on("finish", () => {
+      if (originalUrl === "/health") {
         return;
       }
       const elapsed = Number(process.hrtime.bigint() - start) / 1_000_000;
@@ -36,8 +39,13 @@ async function bootstrap() {
     next();
   });
 
-  // Enable CORS
-  app.enableCors();
+  // Enable CORS with trace context headers
+  app.enableCors({
+    origin: true,
+    credentials: true,
+    exposedHeaders: ['traceparent', 'tracestate'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'traceparent', 'tracestate'],
+  });
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -45,14 +53,14 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
   structuredLogger.log(`Application is running on: http://localhost:${port}`);
-  structuredLogger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  structuredLogger.log(`Environment: ${process.env.NODE_ENV || "development"}`);
 }
 
 bootstrap();

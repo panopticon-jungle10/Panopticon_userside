@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
@@ -21,17 +19,14 @@ services:
     depends_on:
       postgres:
         condition: service_started
-      otel-collector:
-        condition: service_started
     env_file:
       - .env
     environment:
       DATABASE_HOST: postgres
       DATABASE_PORT: ${DATABASE_PORT:-5432}
-      LOG_FILE_PATH: ${LOG_FILE_PATH:-/usr/src/app/logs/app.log}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT:-http://otel-collector:4318/v1/traces}
-    volumes:
-      - app-logs:/usr/src/app/logs
+      LOG_ENDPOINT: ${LOG_ENDPOINT:-http://host.docker.internal:3005/producer/v1/logs}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://host.docker.internal:3005/producer/v1/traces}
+      SERVICE_NAME: ${SERVICE_NAME:-ecommerce-backend}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
 
@@ -46,32 +41,9 @@ services:
       - .env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://app:3000}
+      NEXT_PUBLIC_OTEL_EXPORTER_OTLP_URL: ${NEXT_PUBLIC_OTEL_EXPORTER_OTLP_URL:-http://localhost:3005/producer/v1/traces}
     ports:
       - "${FRONTEND_PORT:-3001}:3000"
 
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.102.1
-    container_name: otel-collector
-    command: ["--config=/etc/otel-collector-config.yaml"]
-    volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
-    env_file:
-      - .env
-    ports:
-      - "${OTEL_COLLECTOR_PORT:-4318}:4318"
-
-  fluent-bit:
-    image: fluent/fluent-bit:2.2
-    container_name: fluent-bit
-    depends_on:
-      app:
-        condition: service_started
-    env_file:
-      - .env
-    volumes:
-      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
-      - app-logs:/logs:ro
-
 volumes:
   postgres-data:
-  app-logs:

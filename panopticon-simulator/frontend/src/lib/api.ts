@@ -67,26 +67,20 @@ export async function loginOrCreate(email: string, name?: string): Promise<User>
 
 // Products API
 export async function getProducts(): Promise<Product[]> {
-  const res = await fetch(`${API_URL}/products`, {
-    cache: 'no-store',
-  });
+  const res = await fetch(`${API_URL}/products`);
   if (!res.ok) throw new Error('Failed to fetch products');
   return res.json();
 }
 
 export async function getProduct(id: string): Promise<Product> {
-  const res = await fetch(`${API_URL}/products/${id}`, {
-    cache: 'no-store',
-  });
+  const res = await fetch(`${API_URL}/products/${id}`);
   if (!res.ok) throw new Error('Failed to fetch product');
   return res.json();
 }
 
 // Users API
 export async function getUsers(): Promise<User[]> {
-  const res = await fetch(`${API_URL}/users`, {
-    cache: 'no-store',
-  });
+  const res = await fetch(`${API_URL}/users`);
   if (!res.ok) throw new Error('Failed to fetch users');
   return res.json();
 }
@@ -118,18 +112,14 @@ export async function createOrder(userId: string, items: OrderItem[]): Promise<O
 
 export async function getOrders(userId?: string): Promise<Order[]> {
   const url = userId ? `${API_URL}/orders?userId=${userId}` : `${API_URL}/orders`;
-  const res = await fetch(url, {
-    cache: 'no-store',
-  });
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch orders');
   return res.json();
 }
 
 // Cart API
 export async function getCart(userId: string): Promise<Cart> {
-  const res = await fetch(`${API_URL}/cart/${userId}`, {
-    cache: 'no-store',
-  });
+  const res = await fetch(`${API_URL}/cart/${userId}`);
   if (!res.ok) throw new Error('Failed to fetch cart');
   return res.json();
 }

@@ -1,12 +1,15 @@
 'use client'
 
 import { PropsWithChildren, useEffect } from 'react'
-import { initBrowserTracing } from '../lib/otel-browser'
+
+// Dynamically import otel-browser to ensure it runs in browser only
+if (typeof window !== 'undefined') {
+  import('../lib/otel-browser')
+}
 
 export function OtelProvider({ children }: PropsWithChildren) {
   useEffect(() => {
-    // 클라이언트 최초 렌더 시 한 번만 브라우저 OTEL 초기화
-    initBrowserTracing()
+    console.log('[OtelProvider] Component mounted')
   }, [])
 
   return <>{children}</>

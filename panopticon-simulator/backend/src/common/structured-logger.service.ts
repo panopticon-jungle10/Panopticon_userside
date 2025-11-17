@@ -1,130 +1,76 @@
-import { ConsoleLogger, Injectable } from "@nestjs/common";
-import {
-  createWriteStream,
-  existsSync,
-  mkdirSync,
-  WriteStream,
-} from "fs";
-import { dirname, join } from "path";
-
-type LogLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
+import { ConsoleLogger, Injectable } from '@nestjs/common'
 
 interface HttpMeta {
-  method: string;
-  path: string;
-  status: number;
-  durationMs: number;
-  ip?: string;
+  method: string
+  path: string
+  status: number
+  durationMs: number
+  ip?: string
 }
 
 @Injectable()
 export class StructuredLogger extends ConsoleLogger {
-  private readonly serviceName = process.env.SERVICE_NAME ?? "order-service";
+  private readonly serviceName = process.env.SERVICE_NAME ?? 'ecommerce-backend'
   private readonly environment =
-    process.env.RUNTIME_ENV ?? process.env.NODE_ENV ?? "local";
-  private readonly logFilePath =
-    process.env.LOG_FILE_PATH ?? join(process.cwd(), "logs", "app.log");
-  private readonly defaultContext?: string;
-  private logStream: WriteStream;
+    process.env.RUNTIME_ENV ?? process.env.NODE_ENV ?? 'local'
+  private readonly logEndpoint =
+    process.env.LOG_ENDPOINT ?? 'http://localhost:3005/producer/v1/logs'
 
-  constructor(contextName?: string) {
-    super(contextName);
-    this.defaultContext = contextName;
-    this.logStream = this.createLogStream();
-  }
-
-  private createLogStream() {
-    const logDir = dirname(this.logFilePath);
-    if (!existsSync(logDir)) {
-      mkdirSync(logDir, { recursive: true });
+  private async forward(payload: Record<string, unknown>) {
+    try {
+      const response = await fetch(this.logEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        super.error(`Failed to forward log: HTTP ${response.status} ${response.statusText}`)
+      }
+    } catch (error) {
+      super.error(`Failed to forward log to ${this.logEndpoint}: ${(error as Error).message}`)
     }
-    const stream = createWriteStream(this.logFilePath, {
-      flags: "a",
-    });
-    stream.on("error", () => {
-      // Re-create the stream if the underlying file becomes unavailable.
-      this.logStream = this.createLogStream();
-    });
-    return stream;
   }
 
-  private buildPayload(
-    level: LogLevel,
-    message: string,
-    extra?: Record<string, unknown>
-  ) {
-    return {
-      type: "log",
+  private emitPayload(level: string, message: string, extra?: Record<string, unknown>) {
+    const payload = {
       timestamp: new Date().toISOString(),
       service_name: this.serviceName,
       environment: this.environment,
+      signal_type: 'log',
       level,
       message,
-      trace_id: null,
-      span_id: null,
       ...(extra ?? {}),
-    };
-  }
-
-  private withContext(
-    extra: Record<string, unknown> = {},
-    contextName?: string
-  ) {
-    const contextValue = contextName ?? this.defaultContext;
-    return contextValue ? { ...extra, context: contextValue } : extra;
-  }
-
-  private emit(
-    level: LogLevel,
-    message: string,
-    extra?: Record<string, unknown>
-  ) {
-    const payload = this.buildPayload(level, message, extra);
-    const isHttpLog =
-      typeof (payload as any).http_method === "string" &&
-      typeof (payload as any).http_path === "string";
-    const messageText =
-      typeof payload.message === "string"
-        ? payload.message.toLowerCase()
-        : "";
-
-    if (level === "INFO" && !isHttpLog && messageText.includes("health")) {
-      return;
     }
-
-    const serialized = JSON.stringify(payload) + "\n";
-    if (!this.logStream.write(serialized)) {
-      this.logStream.once("drain", () => {
-        // no-op, backpressure handled by stream
-      });
-    }
-    process.stdout.write(serialized);
+    process.stdout.write(JSON.stringify(payload) + '\n')
+    this.forward(payload)
   }
 
-  override log(message: any, contextName?: string) {
-    this.emit("INFO", message, this.withContext(undefined, contextName));
+  override log(message: any, context?: string) {
+    this.emitPayload('INFO', message, context ? { context } : undefined)
   }
 
-  override warn(message: any, contextName?: string) {
-    this.emit("WARN", message, this.withContext(undefined, contextName));
+  override warn(message: any, context?: string) {
+    this.emitPayload('WARN', message, context ? { context } : undefined)
   }
 
-  override error(message: any, stack?: string, contextName?: string) {
-    const extra: Record<string, unknown> = stack ? { stack } : {};
-    this.emit("ERROR", message, this.withContext(extra, contextName));
+  override error(message: any, stack?: string, context?: string) {
+    const extra: Record<string, unknown> = {}
+    if (stack) extra.stack = stack
+    if (context) extra.context = context
+    this.emitPayload('ERROR', message, extra)
   }
 
-  override debug(message: any, contextName?: string) {
-    this.emit("DEBUG", message, this.withContext(undefined, contextName));
+  override debug(message: any, context?: string) {
+    this.emitPayload('DEBUG', message, context ? { context } : undefined)
   }
 
   logHttp(meta: HttpMeta) {
-    this.emit("INFO", `${meta.method} ${meta.path}`, {
+    this.emitPayload('INFO', `${meta.method} ${meta.path}`, {
       http_method: meta.method,
       http_path: meta.path,
       http_status_code: meta.status,
       duration_ms: meta.durationMs,
       client_ip: meta.ip,
-    });
+    })
   }
 }
