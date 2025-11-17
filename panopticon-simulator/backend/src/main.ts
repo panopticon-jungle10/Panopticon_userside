@@ -1,17 +1,12 @@
-import './tracing';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { StructuredLogger } from './common/structured-logger.service';
 
 async function bootstrap() {
-  const structuredLogger = new StructuredLogger();
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
-    logger: structuredLogger,
   });
-  app.useLogger(structuredLogger);
-  Logger.overrideLogger(structuredLogger);
+  const logger = new Logger('Bootstrap');
 
   // HTTP Request Logging Middleware
   app.use((req: any, res: any, next: any) => {
@@ -24,13 +19,10 @@ async function bootstrap() {
       }
       const elapsed = Number(process.hrtime.bigint() - start) / 1_000_000;
       const durationMs = Math.round(elapsed * 100) / 100;
-      structuredLogger.logHttp({
-        method,
-        path: originalUrl,
-        status: res.statusCode,
-        durationMs,
-        ip,
-      });
+      logger.log(
+        `${method} ${originalUrl} ${res.statusCode} - ${durationMs}ms (${ip || 'unknown'})`,
+        'HTTP',
+      );
     });
 
     next();
@@ -51,8 +43,8 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  structuredLogger.log(`Application is running on: http://localhost:${port}`);
-  structuredLogger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.log(`Application is running on: http://localhost:${port}`);
+  logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 }
 
 bootstrap();
