@@ -4,6 +4,14 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://13.124.159.121:3000/:path*',
+      },
+    ];
+  },
 }
 
 module.exports = nextConfig

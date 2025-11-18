@@ -1,0 +1,8 @@
+FROM otel/opentelemetry-collector:latest
+
+# OTEL Collector 설정 파일을 이미지에 포함
+COPY otel.config.yaml /etc/otelcol/config.yaml
+
+# OTEL Collector는 기본적으로 /etc/otelcol/config.yaml을 사용
+# 명시적으로 지정하려면 아래 사용
+# CMD ["--config=/etc/otelcol/config.yaml"]

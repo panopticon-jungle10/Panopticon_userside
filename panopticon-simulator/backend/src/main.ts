@@ -1,6 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { StructuredLogger } from "./logger/structured-logger.service";
+import "./tracing";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -9,6 +10,17 @@ async function bootstrap() {
 
   const structuredLogger = app.get(StructuredLogger);
   app.useLogger(structuredLogger);
+
+  // CORS 설정
+  app.enableCors({
+    origin: [
+      "https://panopticon-userside.vercel.app",
+      "http://localhost:3001", // 로컬 개발용
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  });
 
   // [추가] HTTP 요청 로깅 미들웨어
   app.use((req: any, res: any, next: any) => {

@@ -1,0 +1,137 @@
+{
+  "family": "panopticon-backend-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::338952532870:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "fluent-bit",
+      "image": "338952532870.dkr.ecr.ap-northeast-2.amazonaws.com/panopticon/fluent-bit:latest",
+      "essential": false,
+      "cpu": 128,
+      "memory": 256,
+      "firelensConfiguration": {
+        "type": "fluentbit"
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/panopticon-backend",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "fluent-bit"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "ps aux | grep fluent-bit | grep -v grep || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 2,
+        "startPeriod": 5
+      }
+    },
+    {
+      "name": "otel-collector",
+      "image": "338952532870.dkr.ecr.ap-northeast-2.amazonaws.com/panopticon/otel:latest",
+      "essential": false,
+      "cpu": 128,
+      "memory": 256,
+      "portMappings": [
+        {
+          "containerPort": 4317,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 4318,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/panopticon-backend",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "otel-collector"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "ps aux | grep otelcol | grep -v grep || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 2,
+        "startPeriod": 5
+      }
+    },
+    {
+      "name": "backend",
+      "image": "338952532870.dkr.ecr.ap-northeast-2.amazonaws.com/panopticon/userside:latest",
+      "essential": true,
+      "cpu": 256,
+      "memory": 512,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "dependsOn": [
+        {
+          "containerName": "fluent-bit",
+          "condition": "START"
+        },
+        {
+          "containerName": "otel-collector",
+          "condition": "START"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "OTEL_SERVICE_NAME",
+          "value": "panopticon-backend"
+        },
+        {
+          "name": "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+          "value": "http://127.0.0.1:4318/v1/traces"
+        },
+        {
+          "name": "DATABASE_HOST",
+          "value": "panopticon-userside.c3ci8m0ckxou.ap-northeast-2.rds.amazonaws.com"
+        },
+        {
+          "name": "DATABASE_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "DATABASE_NAME",
+          "value": "panopticon"
+        },
+        {
+          "name": "DATABASE_USER",
+          "value": "panopticon"
+        },
+        {
+          "name": "DATABASE_PASSWORD",
+          "value": "panopticon"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awsfirelens",
+        "options": {
+          "Name": "forward",
+          "Host": "127.0.0.1",
+          "Port": "24224"
+        }
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+// Vercel Proxy를 사용 - /api로 시작하면 Next.js가 프록시해서 백엔드로 전달
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export interface Product {
   id: string;
