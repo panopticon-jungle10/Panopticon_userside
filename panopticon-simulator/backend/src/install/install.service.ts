@@ -1,7 +1,6 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
-import { StructuredLogger } from '../common/structured-logger.service';
 import { renderTemplate } from '../utils/template-renderer';
 import { InstallRequestDto } from './dto/install-request.dto';
 import {
@@ -17,7 +16,7 @@ export interface InstallGuideResult {
 
 @Injectable()
 export class InstallService {
-  private readonly logger = new StructuredLogger(InstallService.name);
+  private readonly logger = new Logger(InstallService.name);
 
   async generateInstallGuide(input: InstallRequestDto): Promise<InstallGuideResult> {
     const config = await resolveInstallConfigFromInput(input);

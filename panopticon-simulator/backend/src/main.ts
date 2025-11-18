@@ -1,50 +1,51 @@
-import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { StructuredLogger } from "./logger/structured-logger.service";
+import "./tracing";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    bufferLogs: true,
+    bufferLogs: true, // 부트스트랩 중 로그도 StructuredLogger로 버퍼링합니다.
   });
-  const logger = new Logger('Bootstrap');
 
-  // HTTP Request Logging Middleware
+  const structuredLogger = app.get(StructuredLogger);
+  app.useLogger(structuredLogger);
+
+  // CORS 설정
+  app.enableCors({
+    origin: [
+      "https://panopticon-userside.vercel.app",
+      "http://localhost:3001", // 로컬 개발용
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  });
+
+  // [추가] HTTP 요청 로깅 미들웨어
   app.use((req: any, res: any, next: any) => {
     const start = process.hrtime.bigint();
     const { method, originalUrl, ip } = req;
 
-    res.on('finish', () => {
-      if (originalUrl === '/health') {
-        return;
-      }
+    res.on("finish", () => {
+      // 헬스 체크 엔드포인트는 로그 노이즈를 줄이기 위해 제외합니다.
+      if (originalUrl === "/health") return;
+
       const elapsed = Number(process.hrtime.bigint() - start) / 1_000_000;
       const durationMs = Math.round(elapsed * 100) / 100;
-      logger.log(
-        `${method} ${originalUrl} ${res.statusCode} - ${durationMs}ms (${ip || 'unknown'})`,
-        'HTTP',
-      );
+
+      structuredLogger.logHttp({
+        method,
+        path: originalUrl,
+        status: res.statusCode,
+        durationMs,
+        ip,
+      });
     });
 
     next();
   });
 
-  // Enable CORS
-  app.enableCors();
-
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-
-  logger.log(`Application is running on: http://localhost:${port}`);
-  logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  await app.listen(process.env.PORT || 3000);
 }
-
 bootstrap();

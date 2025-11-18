@@ -1,11 +1,10 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Logger, Param, Post } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { StructuredLogger } from '../common/structured-logger.service';
 
 @Controller('users')
 export class UsersController {
-  private readonly logger = new StructuredLogger(UsersController.name);
+  private readonly logger = new Logger(UsersController.name);
 
   constructor(private readonly usersService: UsersService) {}
 
