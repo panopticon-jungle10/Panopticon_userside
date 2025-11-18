@@ -1,22 +1,22 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
   Body,
-  Param,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Logger,
+  Param,
+  Post,
+  Put,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
-import { StructuredLogger } from '../common/structured-logger.service';
 
 @Controller('cart')
 export class CartController {
-  private readonly logger = new StructuredLogger(CartController.name);
+  private readonly logger = new Logger(CartController.name);
 
   constructor(private readonly cartService: CartService) {}
 

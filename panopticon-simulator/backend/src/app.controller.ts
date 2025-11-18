@@ -1,10 +1,9 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { AppService } from './app.service';
-import { StructuredLogger } from './common/structured-logger.service';
 
 @Controller()
 export class AppController {
-  private readonly logger = new StructuredLogger(AppController.name);
+  private readonly logger = new Logger(AppController.name);
 
   constructor(private readonly appService: AppService) {}
 

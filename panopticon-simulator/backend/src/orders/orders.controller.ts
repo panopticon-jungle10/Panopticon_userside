@@ -1,22 +1,22 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Patch,
-  Body,
-  Param,
-  Query,
   HttpCode,
   HttpStatus,
+  Logger,
+  Param,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order } from './order.entity';
-import { StructuredLogger } from '../common/structured-logger.service';
 
 @Controller('orders')
 export class OrdersController {
-  private readonly logger = new StructuredLogger(OrdersController.name);
+  private readonly logger = new Logger(OrdersController.name);
 
   constructor(private readonly ordersService: OrdersService) {}
 
