@@ -1,0 +1,8 @@
+FROM fluent/fluent-bit:2.2
+
+# Fluent Bit 설정 파일을 이미지에 포함
+COPY fluent-bit.conf /fluent-bit/config/fluent-bit.conf
+COPY parsers.conf /fluent-bit/config/parsers.conf
+
+# Fluent Bit 실행
+CMD ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/config/fluent-bit.conf"]
